@@ -8,11 +8,14 @@
 // ============================================================
 class ThemeManager {
   constructor() {
+    /** @type {string[]} Available theme names. */
     this.themes = ['light', 'dark', 'high-contrast'];
+    /** @type {string} Currently active theme. */
     this.currentTheme = 'light';
     this._loadTheme();
   }
 
+  /** @private Load saved theme from localStorage. */
   _loadTheme() {
     const saved = localStorage.getItem('textDiffEditor_theme');
     if (saved && this.themes.includes(saved)) {
@@ -21,6 +24,10 @@ class ThemeManager {
     this._applyTheme();
   }
 
+  /**
+   * Set the active theme.
+   * @param {string} theme - Theme name ('light', 'dark', or 'high-contrast').
+   */
   setTheme(theme) {
     if (!this.themes.includes(theme)) return;
     this.currentTheme = theme;
@@ -29,24 +36,41 @@ class ThemeManager {
     EventBus.emit('theme:change', { theme });
   }
 
+  /**
+   * Get the current theme name.
+   * @returns {string}
+   */
   getTheme() {
     return this.currentTheme;
   }
 
+  /**
+   * Get list of available themes.
+   * @returns {string[]}
+   */
   getAvailableThemes() {
     return [...this.themes];
   }
 
+  /** Cycle to the next theme in order. */
   toggleTheme() {
     const idx = this.themes.indexOf(this.currentTheme);
     const next = this.themes[(idx + 1) % this.themes.length];
     this.setTheme(next);
   }
 
+  /**
+   * Detect the system color scheme preference.
+   * @returns {string} 'dark' or 'light'.
+   */
   getSystemTheme() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
+  /**
+   * Enable or disable automatic sync with the OS color scheme.
+   * @param {boolean} enabled - Whether to sync with system theme.
+   */
   setSystemThemeSync(enabled) {
     if (enabled) {
       this.setTheme(this.getSystemTheme());
@@ -58,15 +82,16 @@ class ThemeManager {
     }
   }
 
+  /** @private Apply the current theme via data-attribute and smooth transition. */
   _applyTheme() {
     document.documentElement.setAttribute('data-theme', this.currentTheme);
-    // Smooth transition
     document.documentElement.style.transition = 'background-color 0.3s ease, color 0.3s ease';
     setTimeout(() => {
       document.documentElement.style.transition = '';
     }, 300);
   }
 
+  /** Clean up media query listeners. */
   destroy() {
     if (this._mediaQuery && this._mediaHandler) {
       this._mediaQuery.removeEventListener('change', this._mediaHandler);
@@ -78,21 +103,31 @@ class ThemeManager {
 // Toast - Notification system
 // ============================================================
 class Toast {
+  /**
+   * @param {HTMLElement} [container] - Toast container element.
+   */
   constructor(container) {
     this.container = container || document.getElementById('toast-container');
   }
 
+  /**
+   * Show a toast notification.
+   * @param {string} message - Notification text.
+   * @param {'info'|'success'|'error'|'warning'} [type='info'] - Notification type.
+   * @param {number} [duration=3000] - Auto-dismiss delay in ms (0 = manual dismiss).
+   */
   show(message, type = 'info', duration = 3000) {
     if (!this.container) return;
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
+    toast.setAttribute('role', 'alert');
 
     const icons = { success: '\u2713', error: '\u2717', warning: '\u26A0', info: '\u2139' };
     toast.innerHTML = `
-      <span class="toast-icon">${icons[type] || icons.info}</span>
+      <span class="toast-icon" aria-hidden="true">${icons[type] || icons.info}</span>
       <span class="toast-message">${Utils.escapeHtml(message)}</span>
-      <button class="toast-dismiss" aria-label="Dismiss">&times;</button>
+      <button class="toast-dismiss" aria-label="Dismiss notification">&times;</button>
     `;
 
     toast.querySelector('.toast-dismiss').addEventListener('click', () => {
@@ -101,7 +136,6 @@ class Toast {
 
     this.container.appendChild(toast);
 
-    // Animate in
     requestAnimationFrame(() => {
       toast.classList.add('toast-visible');
     });
@@ -111,6 +145,7 @@ class Toast {
     }
   }
 
+  /** @private Remove a toast with exit animation. */
   _removeToast(toast) {
     toast.classList.remove('toast-visible');
     toast.classList.add('toast-exit');
@@ -119,6 +154,7 @@ class Toast {
     }, 300);
   }
 
+  /** Remove all visible toasts. */
   clearAll() {
     if (this.container) {
       this.container.innerHTML = '';
@@ -130,12 +166,16 @@ class Toast {
 // StatusBar - Bottom status display
 // ============================================================
 class StatusBar {
+  /**
+   * @param {HTMLElement} [container] - Status bar container element.
+   */
   constructor(container) {
     this.container = container || document.getElementById('status-bar');
     this._build();
     this._setupListeners();
   }
 
+  /** @private Build the status bar HTML. */
   _build() {
     if (!this.container) return;
     this.container.innerHTML = `
@@ -146,20 +186,28 @@ class StatusBar {
       <div class="status-center">
         <span id="status-cursor" class="status-item" title="Cursor position">Ln 1, Col 1</span>
         <span id="status-encoding" class="status-item">UTF-8</span>
-        <span id="status-diff-stats" class="status-item" hidden></span>
+        <span id="status-diff-stats" class="status-item" hidden aria-live="polite"></span>
       </div>
       <div class="status-right">
-        <span id="status-zoom" class="status-item status-zoom" title="Zoom level (click to reset)">100%</span>
+        <span id="status-zoom" class="status-item status-zoom" title="Zoom level (click to reset)" role="button" tabindex="0" aria-label="Zoom level, click to reset">100%</span>
         <span id="status-split" class="status-item" hidden title="Split mode">Split</span>
       </div>
     `;
 
-    // Click zoom to reset
-    document.getElementById('status-zoom')?.addEventListener('click', () => {
+    // Click or Enter on zoom to reset
+    const zoomEl = document.getElementById('status-zoom');
+    zoomEl?.addEventListener('click', () => {
       EventBus.emit('zoom:reset', {});
+    });
+    zoomEl?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        EventBus.emit('zoom:reset', {});
+      }
     });
   }
 
+  /** @private Wire up EventBus listeners for status updates. */
   _setupListeners() {
     EventBus.on('editor:cursor', (data) => {
       if (data.panelId === 'left') {
@@ -211,34 +259,61 @@ class StatusBar {
     });
   }
 
+  /**
+   * Update the cursor position display.
+   * @param {number} line - Current line number.
+   * @param {number} column - Current column number.
+   */
   updateCursorPosition(line, column) {
     const el = document.getElementById('status-cursor');
     if (el) el.textContent = `Ln ${line}, Col ${column}`;
   }
 
+  /**
+   * Update the displayed file name.
+   * @param {string} name - File name.
+   */
   updateFileName(name) {
     const el = document.getElementById('status-filename');
     if (el) el.textContent = name;
   }
 
+  /**
+   * Update the zoom level display.
+   * @param {number} level - Zoom level (1.0 = 100%).
+   */
   updateZoomLevel(level) {
     const el = document.getElementById('status-zoom');
-    if (el) el.textContent = `${Math.round(level * 100)}%`;
+    if (el) {
+      const pct = Math.round(level * 100);
+      el.textContent = `${pct}%`;
+      el.setAttribute('aria-label', `Zoom ${pct}%, click to reset`);
+    }
   }
 
+  /**
+   * Show or hide the unsaved changes indicator.
+   * @param {boolean} modified - Whether file has unsaved changes.
+   */
   updateModifiedIndicator(modified) {
     const el = document.getElementById('status-modified');
     if (el) el.hidden = !modified;
   }
 
+  /**
+   * Update the diff statistics display.
+   * @param {{ added: number, deleted: number, modified: number, unchanged: number }} stats
+   */
   updateDiffStats(stats) {
     const el = document.getElementById('status-diff-stats');
     if (el) {
       el.hidden = false;
-      el.textContent = `+${stats.added} -${stats.deleted} ~${stats.modified}`;
+      const total = stats.added + stats.deleted + stats.modified;
+      el.textContent = `+${stats.added} -${stats.deleted} ~${stats.modified} (${total} changes)`;
     }
   }
 
+  /** Clean up listeners. */
   destroy() {}
 }
 
@@ -246,12 +321,16 @@ class StatusBar {
 // Toolbar - Top toolbar with actions
 // ============================================================
 class Toolbar {
+  /**
+   * @param {HTMLElement} [container] - Toolbar container element.
+   */
   constructor(container) {
     this.container = container || document.getElementById('toolbar');
     this._build();
     this._setupListeners();
   }
 
+  /** @private Build the toolbar HTML with all action buttons. */
   _build() {
     if (!this.container) return;
     this.container.innerHTML = `
@@ -330,6 +409,7 @@ class Toolbar {
     `;
   }
 
+  /** @private Wire up all toolbar button event listeners. */
   _setupListeners() {
     // File operations
     document.getElementById('btn-new')?.addEventListener('click', () => {
@@ -425,20 +505,36 @@ class Toolbar {
     });
   }
 
+  /**
+   * Update file name display (handled by StatusBar).
+   * @param {string} name - File name.
+   */
   updateFileName(name) {
     // Handled by StatusBar
   }
 
+  /**
+   * Update the zoom level display in the toolbar.
+   * @param {number} level - Zoom level (1.0 = 100%).
+   */
   updateZoomLevel(level) {
     const el = document.getElementById('toolbar-zoom-display');
     if (el) el.textContent = `${Math.round(level * 100)}%`;
   }
 
+  /**
+   * Update the split button active state.
+   * @param {boolean} enabled - Whether split mode is active.
+   */
   updateSplitState(enabled) {
     const btn = document.getElementById('btn-split');
     if (btn) btn.classList.toggle('active', enabled);
   }
 
+  /**
+   * Update the theme toggle button icon and label.
+   * @param {string} theme - Active theme name.
+   */
   updateThemeIcon(theme) {
     const iconEl = document.getElementById('theme-icon');
     const labelEl = document.getElementById('theme-label');
@@ -450,5 +546,6 @@ class Toolbar {
     labelEl.textContent = labels[theme] || labels.light;
   }
 
+  /** Clean up listeners. */
   destroy() {}
 }

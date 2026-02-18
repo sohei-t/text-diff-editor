@@ -14,7 +14,7 @@
       --font-mono: "SF Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
       --font-size-base: 18px;
       --font-size-sm: 13px;
-      --font-size-xs: 11px;
+      --font-size-xs: 13px;
       --line-height: 1.5;
 
       /* Spacing */
@@ -329,10 +329,10 @@
 
     .toolbar-zoom-display {
       font-family: var(--font-mono);
-      font-size: var(--font-size-xs);
-      font-weight: 500;
+      font-size: var(--font-size-sm);
+      font-weight: 600;
       color: var(--text-secondary);
-      min-width: 42px;
+      min-width: 48px;
       text-align: center;
       cursor: pointer;
       padding: var(--space-xs);
@@ -970,6 +970,81 @@
     }
 
     /* ============================================================
+       Diff Gutter Marks (line number indicators)
+       ============================================================ */
+    .line-number-add {
+      color: var(--diff-add-text);
+      font-weight: 600;
+    }
+    .line-number-add::before {
+      content: '+';
+      margin-right: 2px;
+      font-size: 0.85em;
+    }
+    .line-number-delete {
+      color: var(--diff-del-text);
+      font-weight: 600;
+    }
+    .line-number-delete::before {
+      content: '\2212';
+      margin-right: 2px;
+      font-size: 0.85em;
+    }
+    .line-number-modify {
+      color: var(--diff-mod-text);
+      font-weight: 600;
+    }
+    .line-number-modify::before {
+      content: '~';
+      margin-right: 2px;
+      font-size: 0.85em;
+    }
+
+    /* ============================================================
+       Pan Hint (Alt+drag tooltip)
+       ============================================================ */
+    .pan-hint {
+      position: fixed;
+      bottom: 36px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: var(--space-xs) var(--space-md);
+      background: var(--bg-toast);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 200;
+    }
+    .pan-hint.visible {
+      opacity: 1;
+    }
+
+    /* ============================================================
+       Skip-to-content link (Accessibility)
+       ============================================================ */
+    .skip-link {
+      position: absolute;
+      top: -100px;
+      left: 0;
+      background: var(--accent);
+      color: #fff;
+      padding: var(--space-sm) var(--space-lg);
+      z-index: 10000;
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      border-radius: 0 0 var(--radius-sm) 0;
+      transition: top 0.2s ease;
+    }
+    .skip-link:focus {
+      top: 0;
+    }
+
+    /* ============================================================
        Animation: Subtle entrance
        ============================================================ */
     @keyframes fadeInUp {
@@ -989,6 +1064,9 @@
   </style>
 </head>
 <body>
+
+  <!-- Skip to content (Accessibility) -->
+  <a href="#editor-left" class="skip-link">Skip to editor</a>
 
   <!-- Toolbar -->
   <div id="toolbar" role="toolbar" aria-label="Editor toolbar"></div>
@@ -1235,6 +1313,55 @@
       });
 
       // ============================================================
+      // Diff Gutter Marks (apply +/-/~ icons on line numbers)
+      // ============================================================
+      EventBus.on('diff:result', (data) => {
+        const leftLines = document.getElementById('line-numbers-left');
+        const rightLines = document.getElementById('line-numbers-right');
+        if (!leftLines || !rightLines) return;
+
+        // Clear previous marks
+        leftLines.querySelectorAll('.line-number-add,.line-number-delete,.line-number-modify').forEach(el => {
+          el.classList.remove('line-number-add', 'line-number-delete', 'line-number-modify');
+        });
+        rightLines.querySelectorAll('.line-number-add,.line-number-delete,.line-number-modify').forEach(el => {
+          el.classList.remove('line-number-add', 'line-number-delete', 'line-number-modify');
+        });
+
+        const leftChildren = leftLines.children;
+        const rightChildren = rightLines.children;
+
+        data.changes.forEach(change => {
+          if (change.type === 'delete' && change.lineLeft) {
+            const idx = change.lineLeft - 1;
+            if (idx < leftChildren.length) leftChildren[idx].classList.add('line-number-delete');
+          } else if (change.type === 'add' && change.lineRight) {
+            const idx = change.lineRight - 1;
+            if (idx < rightChildren.length) rightChildren[idx].classList.add('line-number-add');
+          } else if (change.type === 'modify') {
+            if (change.lineLeft) {
+              const idxL = change.lineLeft - 1;
+              if (idxL < leftChildren.length) leftChildren[idxL].classList.add('line-number-modify');
+            }
+            if (change.lineRight) {
+              const idxR = change.lineRight - 1;
+              if (idxR < rightChildren.length) rightChildren[idxR].classList.add('line-number-modify');
+            }
+          }
+        });
+      });
+
+      EventBus.on('diff:clear', () => {
+        ['line-numbers-left', 'line-numbers-right'].forEach(id => {
+          const container = document.getElementById(id);
+          if (!container) return;
+          container.querySelectorAll('.line-number-add,.line-number-delete,.line-number-modify').forEach(el => {
+            el.classList.remove('line-number-add', 'line-number-delete', 'line-number-modify');
+          });
+        });
+      });
+
+      // ============================================================
       // Global Keyboard Shortcuts
       // ============================================================
       document.addEventListener('keydown', (e) => {
@@ -1350,8 +1477,45 @@
         autoSave
       };
 
-      console.log('%cText Diff Editor - Prototype C', 'color: #8B7355; font-size: 14px; font-weight: 600;');
-      console.log('%cComponent-Based Architecture | Loaded', 'color: #6B6560; font-size: 11px;');
+      // ============================================================
+      // Unsaved Changes Warning (beforeunload)
+      // ============================================================
+      window.addEventListener('beforeunload', (e) => {
+        if (editorLeft.modified || editorRight.modified) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+
+      // ============================================================
+      // Welcome Message (first launch only)
+      // ============================================================
+      if (!Settings.get('welcomeShown')) {
+        setTimeout(() => {
+          toast.show(
+            'Welcome! Open a file (Cmd+O) or start typing. Use Cmd+\\ to compare files.',
+            'info',
+            6000
+          );
+          Settings.set('welcomeShown', true);
+        }, 500);
+      }
+
+      // ============================================================
+      // Pan Hint (shown briefly on first load if not seen)
+      // ============================================================
+      if (!Settings.get('panHintShown')) {
+        const panHint = document.createElement('div');
+        panHint.className = 'pan-hint';
+        panHint.textContent = 'Tip: Hold Alt and drag to pan the editor';
+        document.body.appendChild(panHint);
+        setTimeout(() => { panHint.classList.add('visible'); }, 1000);
+        setTimeout(() => {
+          panHint.classList.remove('visible');
+          setTimeout(() => panHint.remove(), 300);
+          Settings.set('panHintShown', true);
+        }, 5000);
+      }
     })();
   </script>
 </body>

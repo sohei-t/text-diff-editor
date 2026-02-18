@@ -4,6 +4,7 @@
  */
 
 class SearchManager {
+  /** Create the SearchManager and build the search bar UI. */
   constructor() {
     this.searchBar = document.getElementById('search-bar');
     this.searchInput = null;
@@ -76,6 +77,9 @@ class SearchManager {
         this.findPrevious();
       } else if (e.key === 'Escape') {
         this.close();
+      } else if (e.key === 'Tab') {
+        // Focus trap: keep Tab within search bar
+        this._handleFocusTrap(e);
       }
     });
 
@@ -120,6 +124,10 @@ class SearchManager {
     EventBus.on('search:open', this._onSearchOpen);
   }
 
+  /**
+   * Open the search bar.
+   * @param {boolean} [showReplace=false] - Whether to show the replace row.
+   */
   open(showReplace = false) {
     if (!this.searchBar) return;
     this.searchBar.hidden = false;
@@ -155,6 +163,7 @@ class SearchManager {
     EventBus.emit('search:opened', {});
   }
 
+  /** Close the search bar and clear highlights. */
   close() {
     if (!this.searchBar) return;
     this.searchBar.hidden = true;
@@ -170,6 +179,12 @@ class SearchManager {
     EventBus.emit('search:close', {});
   }
 
+  /**
+   * Execute a search with the given query and options.
+   * @param {string} query - Search string or regex pattern.
+   * @param {{ caseSensitive?: boolean, useRegex?: boolean }} [options]
+   * @returns {{ matches: Object[], total: number }}
+   */
   find(query, options = {}) {
     this.query = query;
     this.caseSensitive = options.caseSensitive || false;
@@ -228,6 +243,10 @@ class SearchManager {
     return { matches: this.matches, total: this.matches.length };
   }
 
+  /**
+   * Navigate to the next match.
+   * @returns {{ start: number, end: number, index: number }|null}
+   */
   findNext() {
     if (this.matches.length === 0) return null;
     this.currentIndex = (this.currentIndex + 1) % this.matches.length;
@@ -243,6 +262,10 @@ class SearchManager {
     return { ...match, index: this.currentIndex };
   }
 
+  /**
+   * Navigate to the previous match.
+   * @returns {{ start: number, end: number, index: number }|null}
+   */
   findPrevious() {
     if (this.matches.length === 0) return null;
     this.currentIndex = this.currentIndex <= 0 ? this.matches.length - 1 : this.currentIndex - 1;
@@ -258,6 +281,10 @@ class SearchManager {
     return { ...match, index: this.currentIndex };
   }
 
+  /**
+   * Replace the current match with the given text.
+   * @param {string} replacement - Replacement text.
+   */
   replace(replacement) {
     if (!this.activeEditor || this.matches.length === 0 || this.currentIndex === -1) return;
 
@@ -270,6 +297,11 @@ class SearchManager {
     this._performSearch();
   }
 
+  /**
+   * Replace all matches with the given text.
+   * @param {string} replacement - Replacement text.
+   * @returns {number} Number of replacements made.
+   */
   replaceAll(replacement) {
     if (!this.activeEditor || this.matches.length === 0) return 0;
 
@@ -315,6 +347,28 @@ class SearchManager {
     // textarea doesn't support styled highlights directly; the selection serves as highlight
   }
 
+  /**
+   * Focus trap: keep Tab/Shift+Tab within the search bar when open.
+   * @param {KeyboardEvent} e
+   */
+  _handleFocusTrap(e) {
+    if (!this.searchBar || !this.isOpen) return;
+    const focusable = this.searchBar.querySelectorAll('input, button:not([hidden])');
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  /** Clean up event listeners. */
   destroy() {
     if (this._onSearchOpen) {
       EventBus.off('search:open', this._onSearchOpen);

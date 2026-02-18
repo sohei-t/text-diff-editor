@@ -7,7 +7,29 @@
 // DiffEngine - Myers Diff Algorithm Implementation
 // ============================================================
 class DiffEngine {
+  constructor() {
+    /** @type {Map<string, Object>} Simple cache keyed by hash of inputs */
+    this._cache = new Map();
+    this._cacheMaxSize = 20;
+  }
+
+  /**
+   * Compute a line-level diff between two texts.
+   * Results are cached for repeated comparisons.
+   * @param {string} textA - Original text.
+   * @param {string} textB - Modified text.
+   * @returns {{ changes: Object[], stats: Object }}
+   */
   computeLineDiff(textA, textB) {
+    // Check cache
+    const cacheKey = textA.length + ':' + textB.length + ':' + (textA.slice(0, 64)) + ':' + (textB.slice(0, 64));
+    if (this._cache.has(cacheKey)) {
+      const cached = this._cache.get(cacheKey);
+      if (cached._fullKeyA === textA && cached._fullKeyB === textB) {
+        return { changes: cached.changes, stats: cached.stats };
+      }
+    }
+
     // Normalize line endings
     const linesA = this._normalizeAndSplit(textA);
     const linesB = this._normalizeAndSplit(textB);
@@ -15,6 +37,13 @@ class DiffEngine {
     const ops = this._myersDiff(linesA, linesB);
     const changes = this._buildChanges(ops, linesA, linesB);
     const stats = this.computeStats(changes);
+
+    // Store in cache
+    if (this._cache.size >= this._cacheMaxSize) {
+      const firstKey = this._cache.keys().next().value;
+      this._cache.delete(firstKey);
+    }
+    this._cache.set(cacheKey, { changes, stats, _fullKeyA: textA, _fullKeyB: textB });
 
     return { changes, stats };
   }
@@ -183,6 +212,12 @@ class DiffEngine {
     return changes;
   }
 
+  /**
+   * Compute character-level inline diff between two lines using LCS.
+   * @param {string} lineA - Original line.
+   * @param {string} lineB - Modified line.
+   * @returns {Array<{ type: string, text: string }>}
+   */
   computeInlineDiff(lineA, lineB) {
     if (lineA === lineB) {
       return [{ type: 'equal', text: lineA }];
@@ -261,6 +296,11 @@ class DiffEngine {
     return result;
   }
 
+  /**
+   * Compute summary statistics from a list of change objects.
+   * @param {Object[]} changes - Array of change records.
+   * @returns {{ added: number, deleted: number, modified: number, unchanged: number }}
+   */
   computeStats(changes) {
     const stats = { added: 0, deleted: 0, modified: 0, unchanged: 0 };
     changes.forEach(c => {
@@ -274,8 +314,15 @@ class DiffEngine {
     return stats;
   }
 
+  /**
+   * Async diff computation for large files.
+   * Uses setTimeout to yield to the main thread.
+   * @param {string} textA - Original text.
+   * @param {string} textB - Modified text.
+   * @param {Function} [onProgress] - Progress callback (0-100).
+   * @returns {Promise<{changes: Object[], stats: Object}>}
+   */
   async computeAsync(textA, textB, onProgress) {
-    // For large files, break into chunks using setTimeout
     return new Promise((resolve) => {
       if (onProgress) onProgress(0);
 
@@ -286,12 +333,20 @@ class DiffEngine {
       }, 0);
     });
   }
+
+  /** Clear the diff result cache. */
+  clearCache() {
+    this._cache.clear();
+  }
 }
 
 // ============================================================
 // SplitView - Two-pane layout with draggable splitter
 // ============================================================
 class SplitView {
+  /**
+   * @param {HTMLElement} container - The editor container.
+   */
   constructor(container) {
     this.container = container;
     this.leftPanel = document.getElementById('panel-left');
@@ -370,10 +425,15 @@ class SplitView {
     });
   }
 
+  /** Toggle split view on or off. */
   toggle() {
     this.setSplit(!this._enabled);
   }
 
+  /**
+   * Enable or disable split view mode.
+   * @param {boolean} enabled - Whether to enable split view.
+   */
   setSplit(enabled) {
     this._enabled = enabled;
 
@@ -396,6 +456,10 @@ class SplitView {
     EventBus.emit('split:toggle', { enabled });
   }
 
+  /**
+   * Set the split ratio (left panel width proportion).
+   * @param {number} ratio - Value between 0.2 and 0.8.
+   */
   setSplitRatio(ratio) {
     this.ratio = Utils.clamp(ratio, 0.2, 0.8);
     if (this._enabled) {
@@ -410,18 +474,35 @@ class SplitView {
     this.rightPanel.style.width = `calc(${(1 - this.ratio) * 100}% - ${splitterWidth / 2}px)`;
   }
 
+  /**
+   * Get the current split ratio.
+   * @returns {number}
+   */
   getSplitRatio() {
     return this.ratio;
   }
 
+  /**
+   * Get the panel element for the given side.
+   * @param {'left'|'right'} side - Panel side.
+   * @returns {HTMLElement}
+   */
   getPane(side) {
     return side === 'left' ? this.leftPanel : this.rightPanel;
   }
 
+  /**
+   * Check if split view is currently active.
+   * @returns {boolean}
+   */
   isSplit() {
     return this._enabled;
   }
 
+  /**
+   * Enable or disable synchronized scrolling between panels.
+   * @param {boolean} enabled - Whether to sync scroll positions.
+   */
   setSyncScroll(enabled) {
     this.syncScroll = enabled;
   }
@@ -449,6 +530,7 @@ class SplitView {
     });
   }
 
+  /** Clean up event listeners and resources. */
   destroy() {
     if (this.splitter && this._onSplitterMouseDown) {
       this.splitter.removeEventListener('mousedown', this._onSplitterMouseDown);

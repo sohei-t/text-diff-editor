@@ -9,6 +9,14 @@
 // ZoomController - Magic Mouse Pinch Zoom (Hybrid Approach)
 // ============================================================
 class ZoomController {
+  /**
+   * @param {HTMLElement} container - The editor container element.
+   * @param {Object} [options]
+   * @param {number} [options.minZoom=0.5]
+   * @param {number} [options.maxZoom=4.0]
+   * @param {number} [options.baseFontSize=18]
+   * @param {number} [options.zoomStep=0.008]
+   */
   constructor(container, options = {}) {
     this.container = container;
     this.level = 1.0;
@@ -20,10 +28,16 @@ class ZoomController {
     this.zoomTimer = null;
     this.enabled = true;
 
+    // Throttled zoom change emission for performance
+    this._throttledEmit = Utils.throttle((data) => {
+      EventBus.emit('zoom:change', data);
+    }, 32);
+
     this._handleWheel = this._handleWheel.bind(this);
     container.addEventListener('wheel', this._handleWheel, { passive: false });
   }
 
+  /** @private */
   _handleWheel(e) {
     if (!this.enabled) return;
     if (!e.ctrlKey) return;
@@ -36,23 +50,26 @@ class ZoomController {
 
     this.level = newLevel;
 
-    // Real-time: CSS transform for smooth zoom
+    // Real-time: CSS transform for smooth zoom via requestAnimationFrame
     const rect = this.container.getBoundingClientRect();
     const ox = ((e.clientX - rect.left) / rect.width * 100);
     const oy = ((e.clientY - rect.top) / rect.height * 100);
-    this.container.style.transformOrigin = `${ox}% ${oy}%`;
-    this.container.style.transform = `scale(${this.level})`;
-    this.container.style.willChange = 'transform';
+
+    requestAnimationFrame(() => {
+      this.container.style.transformOrigin = `${ox}% ${oy}%`;
+      this.container.style.transform = `scale(${this.level})`;
+      this.container.style.willChange = 'transform';
+    });
 
     // Settle: commit to font size after zoom stops
     clearTimeout(this.zoomTimer);
     this.zoomTimer = setTimeout(() => this.commitZoom(), 200);
 
-    EventBus.emit('zoom:change', { level: this.level, originX: ox, originY: oy });
+    this._throttledEmit({ level: this.level, originX: ox, originY: oy });
   }
 
+  /** Commit the current zoom level to font-size for crisp text rendering. */
   commitZoom() {
-    // Apply to font size for crisp text
     const newSize = Math.round(this.baseFontSize * this.level);
     const lineH = Math.round(newSize * 1.5);
 
@@ -66,14 +83,22 @@ class ZoomController {
     this.container.style.willChange = 'auto';
   }
 
+  /** Zoom in by 0.25 step. */
   zoomIn() {
     this.setZoom(this.level + 0.25);
   }
 
+  /** Zoom out by 0.25 step. */
   zoomOut() {
     this.setZoom(this.level - 0.25);
   }
 
+  /**
+   * Set zoom to a specific level with optional origin point.
+   * @param {number} level - Target zoom level.
+   * @param {number} [originX] - Origin X in client coordinates.
+   * @param {number} [originY] - Origin Y in client coordinates.
+   */
   setZoom(level, originX, originY) {
     this.level = Utils.clamp(level, this.minZoom, this.maxZoom);
 
@@ -84,18 +109,28 @@ class ZoomController {
       this.container.style.transformOrigin = `${ox}% ${oy}%`;
     }
 
+    // Use CSS transition for smooth preset zoom
+    this.container.style.transition = 'transform 0.2s ease';
     this.container.style.transform = `scale(${this.level})`;
 
     clearTimeout(this.zoomTimer);
-    this.zoomTimer = setTimeout(() => this.commitZoom(), 200);
+    this.zoomTimer = setTimeout(() => {
+      this.container.style.transition = '';
+      this.commitZoom();
+    }, 250);
 
     EventBus.emit('zoom:change', { level: this.level });
   }
 
+  /**
+   * Get the current zoom level.
+   * @returns {number}
+   */
   getZoom() {
     return this.level;
   }
 
+  /** Reset zoom to 100% with a smooth animation. */
   resetZoom() {
     this.level = 1.0;
     this.container.style.transition = 'transform 0.3s ease';
@@ -110,6 +145,7 @@ class ZoomController {
     EventBus.emit('zoom:reset', {});
   }
 
+  /** Clean up event listeners and timers. */
   destroy() {
     clearTimeout(this.zoomTimer);
     this.container.removeEventListener('wheel', this._handleWheel);
@@ -120,6 +156,11 @@ class ZoomController {
 // PanController - Alt + Drag Pan with Inertia
 // ============================================================
 class PanController {
+  /**
+   * @param {HTMLElement} container - The editor container element.
+   * @param {Object} [options]
+   * @param {number} [options.friction=0.95] - Inertia friction coefficient.
+   */
   constructor(container, options = {}) {
     this.container = container;
     this.friction = options.friction || 0.95;
@@ -140,6 +181,7 @@ class PanController {
     document.addEventListener('mouseup', this._onMouseUp);
   }
 
+  /** @private */
   _onMouseDown(e) {
     if (!this._enabled) return;
     if (!e.altKey) return;
@@ -154,6 +196,7 @@ class PanController {
     EventBus.emit('pan:start', {});
   }
 
+  /** @private */
   _onMouseMove(e) {
     if (!this.panning) return;
     e.preventDefault();
@@ -176,7 +219,8 @@ class PanController {
     EventBus.emit('pan:move', { deltaX: dx, deltaY: dy });
   }
 
-  _onMouseUp(e) {
+  /** @private */
+  _onMouseUp() {
     if (!this.panning) return;
     this.panning = false;
     this.container.style.cursor = '';
@@ -184,6 +228,7 @@ class PanController {
     this._startInertia();
   }
 
+  /** @private */
   _startInertia() {
     const textarea = this.container.querySelector('.editor-textarea');
     if (!textarea) return;
@@ -203,19 +248,26 @@ class PanController {
     this.inertiaFrame = requestAnimationFrame(animate);
   }
 
+  /** Enable pan controller. */
   enable() {
     this._enabled = true;
   }
 
+  /** Disable pan controller. */
   disable() {
     this._enabled = false;
     this.panning = false;
   }
 
+  /**
+   * Check if currently panning.
+   * @returns {boolean}
+   */
   isPanning() {
     return this.panning;
   }
 
+  /** Reset scroll position to origin. */
   reset() {
     const textarea = this.container.querySelector('.editor-textarea');
     if (textarea) {
@@ -224,6 +276,7 @@ class PanController {
     }
   }
 
+  /** Clean up event listeners and animation frames. */
   destroy() {
     cancelAnimationFrame(this.inertiaFrame);
     this.container.removeEventListener('mousedown', this._onMouseDown);

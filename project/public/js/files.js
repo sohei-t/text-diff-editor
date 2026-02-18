@@ -7,6 +7,7 @@
 // FileManager - File System Access API + Fallback
 // ============================================================
 class FileManager {
+  /** Create the FileManager and wire up EventBus listeners. */
   constructor() {
     this.files = {
       left: { name: 'Untitled', handle: null, content: '' },
@@ -18,10 +19,19 @@ class FileManager {
     EventBus.on('file:drop', (data) => this._onDrop(data));
   }
 
+  /**
+   * Check if the File System Access API is available.
+   * @returns {boolean}
+   */
   isNativeSupported() {
     return 'showOpenFilePicker' in window;
   }
 
+  /**
+   * Open a file using the native picker or fallback input.
+   * @param {string} panelId - Panel identifier ('left' or 'right').
+   * @returns {Promise<{ name: string, content: string, handle: FileSystemFileHandle|null }|null>}
+   */
   async openFile(panelId) {
     try {
       let name, content, handle = null;
@@ -46,6 +56,9 @@ class FileManager {
       }
 
       this.files[panelId] = { name, handle, content };
+
+      // Track recent files
+      this._addToRecentFiles(name);
 
       EventBus.emit('file:open', { panelId, name, content, handle });
       EventBus.emit('toast:show', {
@@ -100,6 +113,12 @@ class FileManager {
     });
   }
 
+  /**
+   * Save content to the current file handle or prompt for Save As.
+   * @param {string} panelId - Panel identifier ('left' or 'right').
+   * @param {string} content - Text content to save.
+   * @returns {Promise<boolean>}
+   */
   async saveFile(panelId, content) {
     try {
       const fileState = this.files[panelId];
@@ -139,6 +158,13 @@ class FileManager {
     }
   }
 
+  /**
+   * Save content to a new file via Save As dialog.
+   * @param {string} panelId - Panel identifier.
+   * @param {string} content - Text content.
+   * @param {string} [suggestedName] - Suggested file name.
+   * @returns {Promise<{ name: string, handle: FileSystemFileHandle|null }|null>}
+   */
   async saveAsFile(panelId, content, suggestedName) {
     try {
       let name, handle = null;
@@ -192,11 +218,21 @@ class FileManager {
     URL.revokeObjectURL(url);
   }
 
+  /**
+   * Create a new empty file for the given panel.
+   * @param {string} panelId - Panel identifier.
+   */
   createNew(panelId) {
     this.files[panelId] = { name: 'Untitled', handle: null, content: '' };
     EventBus.emit('file:new', { panelId });
   }
 
+  /**
+   * Handle a file dropped onto a panel.
+   * @param {string} panelId - Panel identifier.
+   * @param {File} file - Dropped file.
+   * @returns {Promise<{ name: string, content: string }|null>}
+   */
   async handleDrop(panelId, file) {
     try {
       // Warn about binary files
@@ -224,6 +260,31 @@ class FileManager {
 
   getFileName(panelId) {
     return this.files[panelId]?.name || 'Untitled';
+  }
+
+  /**
+   * Add a filename to the recent files list in Settings.
+   * @param {string} name - File name.
+   */
+  _addToRecentFiles(name) {
+    if (!name || name === 'Untitled') return;
+    try {
+      let recent = Settings.get('recentFiles') || [];
+      recent = recent.filter(f => f !== name);
+      recent.unshift(name);
+      if (recent.length > 10) recent = recent.slice(0, 10);
+      Settings.set('recentFiles', recent);
+    } catch (_e) {
+      // Silently fail
+    }
+  }
+
+  /**
+   * Get the recent files list.
+   * @returns {string[]}
+   */
+  getRecentFiles() {
+    return Settings.get('recentFiles') || [];
   }
 
   _onSaveRequest(data) {
