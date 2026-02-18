@@ -1,0 +1,596 @@
+/*
+ * ============================================
+ * Stock Dashboard Animations
+ * ============================================
+ * Professional animation library for stock market dashboard
+ * Focus on performance, accessibility, and user experience
+ */
+
+/* ============================================
+   Core Keyframe Animations
+   ============================================ */
+
+/* Pulse - For live indicators and important elements */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.15);
+    }
+}
+
+/* Spin - For loading spinners */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Fade In - Gentle entrance animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Fade In Scale - Modal and panel entrance */
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* Slide In From Left - List item entrance */
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Slide In From Right */
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Slide In From Top - Notification style */
+@keyframes slideInTop {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Slide In From Bottom */
+@keyframes slideInBottom {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Bounce - Attention grabber (use sparingly) */
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+/* Shake - Error state animation */
+@keyframes shake {
+    0%, 100% {
+        transform: translateX(0);
+    }
+    10%, 30%, 50%, 70%, 90% {
+        transform: translateX(-5px);
+    }
+    20%, 40%, 60%, 80% {
+        transform: translateX(5px);
+    }
+}
+
+/* Shimmer - Loading skeleton animation */
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+/* Price Flash - Stock price update animation */
+@keyframes priceFlashGreen {
+    0% {
+        background-color: rgba(16, 185, 129, 0);
+    }
+    50% {
+        background-color: rgba(16, 185, 129, 0.3);
+    }
+    100% {
+        background-color: rgba(16, 185, 129, 0);
+    }
+}
+
+@keyframes priceFlashRed {
+    0% {
+        background-color: rgba(239, 68, 68, 0);
+    }
+    50% {
+        background-color: rgba(239, 68, 68, 0.3);
+    }
+    100% {
+        background-color: rgba(239, 68, 68, 0);
+    }
+}
+
+/* Glow - Highlighting important changes */
+@keyframes glow {
+    0%, 100% {
+        box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+    }
+}
+
+/* Progress Bar - Loading indicator */
+@keyframes progressBar {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Skeleton Loading - Content placeholder */
+@keyframes skeletonLoading {
+    0% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.6;
+    }
+}
+
+/* Number Counter - Animated number change */
+@keyframes numberPop {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* ============================================
+   Utility Animation Classes
+   ============================================ */
+
+/* Fade animations */
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.fade-in-slow {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.fade-in-fast {
+    animation: fadeIn 0.15s ease-out;
+}
+
+/* Slide animations */
+.slide-in-left {
+    animation: slideInLeft 0.3s ease-out;
+}
+
+.slide-in-right {
+    animation: slideInRight 0.3s ease-out;
+}
+
+.slide-in-top {
+    animation: slideInTop 0.3s ease-out;
+}
+
+.slide-in-bottom {
+    animation: slideInBottom 0.3s ease-out;
+}
+
+/* Loading animations */
+.pulse {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+.shimmer {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+}
+
+/* Interactive animations */
+.bounce {
+    animation: bounce 0.6s ease-in-out;
+}
+
+.shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+.glow {
+    animation: glow 2s ease-in-out infinite;
+}
+
+/* Price update animations */
+.price-flash-green {
+    animation: priceFlashGreen 0.8s ease-out;
+}
+
+.price-flash-red {
+    animation: priceFlashRed 0.8s ease-out;
+}
+
+.number-pop {
+    animation: numberPop 0.4s ease-out;
+}
+
+/* ============================================
+   Loading States
+   ============================================ */
+
+/* Skeleton Screen */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.05) 25%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0.05) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+}
+
+.skeleton-text {
+    height: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.skeleton-title {
+    height: 1.5rem;
+    width: 60%;
+    margin-bottom: 1rem;
+}
+
+.skeleton-card {
+    height: 200px;
+    border-radius: 12px;
+}
+
+/* Spinner Variants */
+.spinner-border {
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.spinner-dots {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.spinner-dots span {
+    width: 8px;
+    height: 8px;
+    background: currentColor;
+    border-radius: 50%;
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+.spinner-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.spinner-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* Progress Bar */
+.progress-bar {
+    position: relative;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+    border-radius: 2px;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+    animation: progressBar 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   Transition Utilities
+   ============================================ */
+
+.transition-all {
+    transition: all 0.25s ease-in-out;
+}
+
+.transition-fast {
+    transition: all 0.15s ease-in-out;
+}
+
+.transition-slow {
+    transition: all 0.35s ease-in-out;
+}
+
+.transition-colors {
+    transition: background-color 0.25s ease-in-out, color 0.25s ease-in-out;
+}
+
+.transition-transform {
+    transition: transform 0.25s ease-in-out;
+}
+
+.transition-opacity {
+    transition: opacity 0.25s ease-in-out;
+}
+
+/* ============================================
+   Hover Effects
+   ============================================ */
+
+.hover-lift {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.hover-scale {
+    transition: transform 0.2s ease-in-out;
+}
+
+.hover-scale:hover {
+    transform: scale(1.05);
+}
+
+.hover-brightness {
+    transition: filter 0.2s ease-in-out;
+}
+
+.hover-brightness:hover {
+    filter: brightness(1.1);
+}
+
+/* ============================================
+   Scroll Animations (for future use)
+   ============================================ */
+
+.scroll-fade-in {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.scroll-fade-in.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ============================================
+   Accessibility - Reduced Motion
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    /* Keep essential indicators visible */
+    .pulse,
+    .spin,
+    .shimmer {
+        animation: none !important;
+    }
+
+    .spinner-border {
+        animation: none !important;
+        border-top-color: currentColor;
+    }
+}
+
+/* ============================================
+   Performance Optimization
+   ============================================ */
+
+/* GPU Acceleration for better performance */
+.gpu-accelerated {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+/* Optimize animations */
+@media (prefers-reduced-motion: no-preference) {
+    .smooth-scroll {
+        scroll-behavior: smooth;
+    }
+}
+
+/* ============================================
+   Stock-Specific Animations
+   ============================================ */
+
+/* Ticker Tape Animation */
+@keyframes tickerTape {
+    0% {
+        transform: translateX(100%);
+    }
+    100% {
+        transform: translateX(-100%);
+    }
+}
+
+.ticker-tape {
+    animation: tickerTape 30s linear infinite;
+}
+
+/* Market Open/Close Indicator */
+@keyframes marketPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+    }
+}
+
+.market-open {
+    animation: marketPulse 2s ease-out infinite;
+}
+
+/* Price Movement Indicators */
+.price-up {
+    animation: slideInBottom 0.3s ease-out, priceFlashGreen 0.6s ease-out;
+}
+
+.price-down {
+    animation: slideInTop 0.3s ease-out, priceFlashRed 0.6s ease-out;
+}
+
+/* Chart Loading Animation */
+@keyframes chartDraw {
+    from {
+        stroke-dashoffset: 1000;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.chart-line {
+    stroke-dasharray: 1000;
+    animation: chartDraw 2s ease-out forwards;
+}
+
+/* ============================================
+   Custom Easing Functions
+   ============================================ */
+
+:root {
+    --ease-in-quad: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+    --ease-in-cubic: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+    --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+    --ease-in-out-quad: cubic-bezier(0.455, 0.03, 0.515, 0.955);
+    --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+/* ============================================
+   Mobile Touch Animations
+   ============================================ */
+
+/* Touch feedback */
+.touch-feedback {
+    position: relative;
+    overflow: hidden;
+}
+
+.touch-feedback::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.touch-feedback:active::after {
+    width: 300px;
+    height: 300px;
+}
+
+/* Pull to refresh indicator */
+@keyframes pullRefresh {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.pull-refresh-indicator {
+    animation: pullRefresh 1s linear infinite;
+}
