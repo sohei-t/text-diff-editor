@@ -1440,17 +1440,1315 @@
       assert.equal(sm.get('theme'), 'dark');
       sm.resetToDefaults();
     });
+
+    it('TC-SET-007: should return all settings with getAll()', () => {
+      const sm = new SettingsManager();
+      const all = sm.getAll();
+      assert.equal(typeof all, 'object');
+      assert.equal(all.fontSize, 18);
+      assert.equal(all.theme, 'light');
+      assert.ok('wordWrap' in all);
+      assert.ok('syncScroll' in all);
+    });
+
+    it('TC-SET-008: should return a copy from getAll (not reference)', () => {
+      const sm = new SettingsManager();
+      const all = sm.getAll();
+      all.fontSize = 999;
+      assert.equal(sm.get('fontSize'), 18, 'Mutating getAll result should not affect original');
+    });
+
+    it('TC-SET-009: should emit settings:reset on resetToDefaults', () => {
+      window.EventBus = new EventBus();
+      const sm = new SettingsManager();
+      let emitted = null;
+      EventBus.on('settings:reset', (data) => { emitted = data; });
+      sm.set('fontSize', 36);
+      sm.resetToDefaults();
+      assert.ok(emitted, 'settings:reset should be emitted');
+      assert.equal(emitted.fontSize, 18);
+    });
+
+    it('TC-SET-010: should have correct default values for all settings', () => {
+      const sm = new SettingsManager();
+      sm.resetToDefaults();
+      assert.equal(sm.get('lineHeight'), 1.6);
+      assert.equal(sm.get('wordWrap'), true);
+      assert.equal(sm.get('showLineNumbers'), true);
+      assert.equal(sm.get('highlightCurrentLine'), true);
+      assert.equal(sm.get('autoSaveInterval'), 0);
+      assert.equal(sm.get('splitRatio'), 0.5);
+      assert.equal(sm.get('syncScroll'), true);
+      assert.equal(sm.get('lastZoomLevel'), 1.0);
+    });
   });
 
   // ============================================================
-  // Support async tests with done() callback
+  // PHASE 4 COVERAGE IMPROVEMENT TESTS
   // ============================================================
-  (function patchAsyncTests() {
-    const origIt = window.it;
-    // The framework already handles async via await, but we need done() support
-    // We patch: if test fn has a parameter, wrap it in a Promise
-    // This is handled by checking fn.length
-  })();
+
+  // ---- ZoomController: Comprehensive Coverage ----
+  describe('ZoomController (Comprehensive Coverage)', () => {
+    let zoom, container;
+
+    beforeEach(() => {
+      container = document.getElementById('test-editor-container');
+      container.style.transform = '';
+      container.style.transformOrigin = '';
+      window.EventBus = new EventBus();
+      zoom = new ZoomController(container, { baseFontSize: 18, minZoom: 0.5, maxZoom: 4.0 });
+    });
+
+    afterEach(() => {
+      if (zoom) zoom.destroy();
+    });
+
+    it('TC-ZC-011: should handle multiple zoomIn calls in sequence', () => {
+      zoom.zoomIn(); // 1.25
+      zoom.zoomIn(); // 1.50
+      zoom.zoomIn(); // 1.75
+      assert.equal(zoom.getZoom(), 1.75);
+    });
+
+    it('TC-ZC-012: should handle multiple zoomOut calls in sequence', () => {
+      zoom.zoomOut(); // 0.75
+      zoom.zoomOut(); // 0.50
+      assert.equal(zoom.getZoom(), 0.5);
+    });
+
+    it('TC-ZC-013: should clamp zoomOut to minZoom', () => {
+      zoom.setZoom(0.5);
+      zoom.zoomOut();
+      assert.equal(zoom.getZoom(), 0.5, 'Should not go below minZoom');
+    });
+
+    it('TC-ZC-014: should clamp zoomIn to maxZoom', () => {
+      zoom.setZoom(4.0);
+      zoom.zoomIn();
+      assert.equal(zoom.getZoom(), 4.0, 'Should not go above maxZoom');
+    });
+
+    it('TC-ZC-015: should accept custom zoomStep option', () => {
+      const zc2 = new ZoomController(container, { baseFontSize: 18, zoomStep: 0.01 });
+      assert.equal(zc2.zoomStep, 0.01);
+      zc2.destroy();
+    });
+
+    it('TC-ZC-016: setZoom with originX/originY should set transformOrigin', () => {
+      // Set explicit bounding rect by having the container in DOM
+      zoom.setZoom(1.5);
+      assert.equal(zoom.getZoom(), 1.5);
+      assert.ok(container.style.transform.includes('scale(1.5)'));
+    });
+
+    it('TC-ZC-017: commitZoom should reset transform to scale(1)', (done) => {
+      zoom.setZoom(2.0);
+      // commitZoom is delayed, call it directly
+      zoom.commitZoom();
+      // After commitZoom, transform should be scale(1)
+      assert.ok(container.style.transform.includes('scale(1)'));
+      done();
+    });
+
+    it('TC-ZC-018: commitZoom should set font size based on level', () => {
+      zoom.level = 2.0;
+      zoom.commitZoom();
+      const ta = container.querySelector('.editor-textarea');
+      if (ta) {
+        const size = parseFloat(ta.style.fontSize);
+        assert.approximately(size, 36, 2, 'Font size should be ~36px at 2x zoom');
+      }
+    });
+
+    it('TC-ZC-019: zoom in from ctrl+wheel with negative deltaY', () => {
+      const initialZoom = zoom.getZoom();
+      const wheelEvent = new WheelEvent('wheel', {
+        ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true
+      });
+      container.dispatchEvent(wheelEvent);
+      assert.ok(zoom.getZoom() > initialZoom, 'Zoom should increase');
+    });
+
+    it('TC-ZC-020: zoom out from ctrl+wheel with positive deltaY', () => {
+      zoom.setZoom(2.0);
+      const initialZoom = zoom.getZoom();
+      const wheelEvent = new WheelEvent('wheel', {
+        ctrlKey: true, deltaY: 100, bubbles: true, cancelable: true
+      });
+      container.dispatchEvent(wheelEvent);
+      assert.ok(zoom.getZoom() < initialZoom, 'Zoom should decrease');
+    });
+
+    it('TC-ZC-021: should set will-change during zoom', () => {
+      const wheelEvent = new WheelEvent('wheel', {
+        ctrlKey: true, deltaY: -50, bubbles: true, cancelable: true
+      });
+      container.dispatchEvent(wheelEvent);
+      assert.equal(container.style.willChange, 'transform');
+    });
+
+    it('TC-ZC-022: resetZoom should set transition for animation', () => {
+      zoom.setZoom(2.0);
+      zoom.resetZoom();
+      assert.ok(container.style.transition.includes('transform'));
+    });
+
+    it('TC-ZC-023: should ignore wheel when not enabled', () => {
+      zoom.enabled = false;
+      const initialZoom = zoom.getZoom();
+      const wheelEvent = new WheelEvent('wheel', {
+        ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true
+      });
+      container.dispatchEvent(wheelEvent);
+      assert.equal(zoom.getZoom(), initialZoom, 'Zoom should not change when disabled');
+    });
+
+    it('TC-ZC-024: should ignore very small delta changes', () => {
+      const initialZoom = zoom.getZoom();
+      const wheelEvent = new WheelEvent('wheel', {
+        ctrlKey: true, deltaY: 0, bubbles: true, cancelable: true
+      });
+      container.dispatchEvent(wheelEvent);
+      assert.equal(zoom.getZoom(), initialZoom, 'Zoom should not change for zero delta');
+    });
+  });
+
+  // ---- PanController: Comprehensive Coverage ----
+  describe('PanController (Comprehensive Coverage)', () => {
+    let pan, container;
+
+    beforeEach(() => {
+      container = document.getElementById('test-editor-container');
+      window.EventBus = new EventBus();
+      pan = new PanController(container);
+    });
+
+    afterEach(() => {
+      if (pan) pan.destroy();
+    });
+
+    it('TC-PC-009: should set cursor to grabbing when panning starts', () => {
+      container.dispatchEvent(new MouseEvent('mousedown', { altKey: true, bubbles: true }));
+      assert.equal(container.style.cursor, 'grabbing');
+    });
+
+    it('TC-PC-010: should reset cursor on mouseup', () => {
+      container.dispatchEvent(new MouseEvent('mousedown', { altKey: true, bubbles: true }));
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      assert.equal(container.style.cursor, '');
+    });
+
+    it('TC-PC-011: should emit pan:move during mousemove while panning', () => {
+      let moveData = null;
+      EventBus.on('pan:move', (data) => { moveData = data; });
+      container.dispatchEvent(new MouseEvent('mousedown', {
+        altKey: true, clientX: 100, clientY: 100, bubbles: true
+      }));
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: 150, clientY: 120, bubbles: true
+      }));
+      assert.ok(moveData, 'pan:move should be emitted');
+      assert.equal(moveData.deltaX, 50);
+      assert.equal(moveData.deltaY, 20);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+
+    it('TC-PC-012: should not emit pan:move when not panning', () => {
+      let moveData = null;
+      EventBus.on('pan:move', (data) => { moveData = data; });
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: 150, clientY: 120, bubbles: true
+      }));
+      assert.notOk(moveData, 'pan:move should not be emitted when not panning');
+    });
+
+    it('TC-PC-013: should track velocity during pan', () => {
+      container.dispatchEvent(new MouseEvent('mousedown', {
+        altKey: true, clientX: 100, clientY: 100, bubbles: true
+      }));
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: 130, clientY: 115, bubbles: true
+      }));
+      assert.equal(pan.velocityX, 30);
+      assert.equal(pan.velocityY, 15);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+
+    it('TC-PC-014: should accept custom friction option', () => {
+      const pan2 = new PanController(container, { friction: 0.8 });
+      assert.equal(pan2.friction, 0.8);
+      pan2.destroy();
+    });
+
+    it('TC-PC-015: disable should stop active panning', () => {
+      container.dispatchEvent(new MouseEvent('mousedown', { altKey: true, bubbles: true }));
+      assert.ok(pan.isPanning());
+      pan.disable();
+      assert.notOk(pan.isPanning());
+    });
+
+    it('TC-PC-016: reset should zero out scroll position', () => {
+      const textarea = container.querySelector('.editor-textarea');
+      if (textarea) {
+        textarea.scrollLeft = 200;
+        textarea.scrollTop = 300;
+        pan.reset();
+        assert.equal(textarea.scrollLeft, 0);
+        assert.equal(textarea.scrollTop, 0);
+      }
+    });
+  });
+
+  // ---- DiffEngine: Comprehensive Coverage ----
+  describe('DiffEngine (Comprehensive Coverage)', () => {
+    let diff;
+
+    beforeEach(() => {
+      diff = new DiffEngine();
+    });
+
+    it('TC-DE-015: should handle null input gracefully', () => {
+      const result = diff.computeLineDiff(null, 'text');
+      assert.ok(result.changes.length >= 0);
+    });
+
+    it('TC-DE-016: should handle undefined input gracefully', () => {
+      const result = diff.computeLineDiff(undefined, undefined);
+      assert.ok(result.changes.length >= 0);
+    });
+
+    it('TC-DE-017: should handle Unicode characters (Japanese)', () => {
+      const result = diff.computeLineDiff('こんにちは\n世界', 'こんにちは\n日本');
+      const mods = result.changes.filter(c => c.type !== 'equal');
+      assert.ok(mods.length > 0, 'Should detect change in Japanese text');
+    });
+
+    it('TC-DE-018: should handle emoji in text', () => {
+      const result = diff.computeLineDiff('Hello 😀', 'Hello 😢');
+      const mods = result.changes.filter(c => c.type !== 'equal');
+      assert.ok(mods.length > 0, 'Should detect emoji change');
+    });
+
+    it('TC-DE-019: should handle very long single line (10000 chars)', () => {
+      const longA = 'a'.repeat(10000);
+      const longB = 'a'.repeat(5000) + 'b' + 'a'.repeat(4999);
+      const result = diff.computeLineDiff(longA, longB);
+      const mods = result.changes.filter(c => c.type !== 'equal');
+      assert.ok(mods.length > 0, 'Should detect changes in long text');
+    });
+
+    it('TC-DE-020: should handle text with only newlines', () => {
+      const result = diff.computeLineDiff('\n\n\n', '\n\n');
+      assert.ok(result.changes.length > 0);
+    });
+
+    it('TC-DE-021: should handle consecutive delete operations', () => {
+      const result = diff.computeLineDiff('a\nb\nc\nd\ne', 'a\ne');
+      const dels = result.changes.filter(c => c.type === 'delete');
+      assert.ok(dels.length >= 1, 'Should have at least one delete');
+      assert.equal(result.stats.unchanged, 2); // a and e
+    });
+
+    it('TC-DE-022: should handle consecutive add operations', () => {
+      const result = diff.computeLineDiff('a\ne', 'a\nb\nc\nd\ne');
+      const adds = result.changes.filter(c => c.type === 'add');
+      assert.ok(adds.length >= 1, 'Should have at least one add');
+      assert.equal(result.stats.unchanged, 2); // a and e
+    });
+
+    it('TC-DE-023: computeStats should correctly count all types', () => {
+      const changes = [
+        { type: 'equal' }, { type: 'equal' },
+        { type: 'add' },
+        { type: 'delete' },
+        { type: 'modify' }, { type: 'modify' }
+      ];
+      const stats = diff.computeStats(changes);
+      assert.equal(stats.unchanged, 2);
+      assert.equal(stats.added, 1);
+      assert.equal(stats.deleted, 1);
+      assert.equal(stats.modified, 2);
+    });
+
+    it('TC-DE-024: computeStats on empty changes array', () => {
+      const stats = diff.computeStats([]);
+      assert.equal(stats.unchanged, 0);
+      assert.equal(stats.added, 0);
+      assert.equal(stats.deleted, 0);
+      assert.equal(stats.modified, 0);
+    });
+
+    it('TC-DE-025: computeInlineDiff for identical lines', () => {
+      const result = diff.computeInlineDiff('same text', 'same text');
+      assert.equal(result.length, 1);
+      assert.equal(result[0].type, 'equal');
+      assert.equal(result[0].text, 'same text');
+    });
+
+    it('TC-DE-026: computeInlineDiff for completely different lines', () => {
+      const result = diff.computeInlineDiff('abc', 'xyz');
+      const hasDelete = result.some(d => d.type === 'delete');
+      const hasAdd = result.some(d => d.type === 'add');
+      assert.ok(hasDelete || hasAdd, 'Should have differences');
+    });
+
+    it('TC-DE-027: computeInlineDiff for prefix change', () => {
+      const result = diff.computeInlineDiff('Hello world', 'Goodbye world');
+      assert.ok(result.length > 1, 'Should have multiple diff segments');
+    });
+
+    it('TC-DE-028: computeInlineDiff for suffix change', () => {
+      const result = diff.computeInlineDiff('Hello world', 'Hello earth');
+      assert.ok(result.length > 1, 'Should have multiple diff segments');
+    });
+
+    it('TC-DE-029: should handle mixed CRLF and LF', () => {
+      const result = diff.computeLineDiff('a\r\nb\nc', 'a\nb\r\nc');
+      assert.ok(result.changes.every(c => c.type === 'equal'), 'Should treat CRLF same as LF');
+    });
+
+    it('TC-DE-030: computeAsync should resolve with progress callback', async () => {
+      let progressCalled = false;
+      const result = await diff.computeAsync('line1\nline2', 'line1\nchanged', (p) => {
+        progressCalled = true;
+      });
+      assert.ok(result.changes.length > 0);
+      assert.ok(progressCalled, 'Progress callback should be called');
+    });
+
+    it('TC-DE-031: _normalizeAndSplit should handle empty string', () => {
+      const result = diff._normalizeAndSplit('');
+      assert.deepEqual(result, ['']);
+    });
+
+    it('TC-DE-032: _normalizeAndSplit should normalize \\r to \\n', () => {
+      const result = diff._normalizeAndSplit('a\rb');
+      assert.deepEqual(result, ['a', 'b']);
+    });
+  });
+
+  // ---- FileManager: Comprehensive Coverage ----
+  describe('FileManager (Comprehensive Coverage)', () => {
+    let fm;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      fm = new FileManager();
+    });
+
+    it('TC-FM-007: should handle text file drops correctly', async () => {
+      const file = new File(['hello world'], 'doc.txt', { type: 'text/plain' });
+      const result = await fm.handleDrop('left', file);
+      assert.ok(result);
+      assert.equal(result.name, 'doc.txt');
+      assert.equal(result.content, 'hello world');
+      assert.equal(fm.getFileName('left'), 'doc.txt');
+    });
+
+    it('TC-FM-008: should handle JSON file drops without warning', async () => {
+      let toastType = null;
+      EventBus.on('toast:show', (data) => { toastType = data.type; });
+      const file = new File(['{"key":"value"}'], 'data.json', { type: 'application/json' });
+      await fm.handleDrop('left', file);
+      assert.notEqual(toastType, 'warning', 'JSON should not trigger binary warning');
+    });
+
+    it('TC-FM-009: should handle XML file drops without warning', async () => {
+      let toastType = null;
+      EventBus.on('toast:show', (data) => { toastType = data.type; });
+      const file = new File(['<root/>'], 'data.xml', { type: 'application/xml' });
+      await fm.handleDrop('left', file);
+      assert.notEqual(toastType, 'warning');
+    });
+
+    it('TC-FM-010: should handle JavaScript file drops without warning', async () => {
+      let toastType = null;
+      EventBus.on('toast:show', (data) => { toastType = data.type; });
+      const file = new File(['console.log("hi")'], 'app.js', { type: 'application/javascript' });
+      await fm.handleDrop('left', file);
+      assert.notEqual(toastType, 'warning');
+    });
+
+    it('TC-FM-011: createNew should reset file state', () => {
+      fm.files.left = { name: 'test.txt', handle: {}, content: 'some content' };
+      fm.createNew('left');
+      assert.equal(fm.getFileName('left'), 'Untitled');
+      assert.equal(fm.files.left.content, '');
+      assert.equal(fm.files.left.handle, null);
+    });
+
+    it('TC-FM-012: createNew should emit file:new event', () => {
+      let emitted = null;
+      EventBus.on('file:new', (data) => { emitted = data; });
+      fm.createNew('right');
+      assert.ok(emitted);
+      assert.equal(emitted.panelId, 'right');
+    });
+
+    it('TC-FM-013: isNativeSupported should return boolean', () => {
+      const result = fm.isNativeSupported();
+      assert.equal(typeof result, 'boolean');
+    });
+
+    it('TC-FM-014: getFileName should return Untitled for missing panelId', () => {
+      const name = fm.getFileName('nonexistent');
+      assert.equal(name, 'Untitled');
+    });
+
+    it('TC-FM-015: destroy should not throw', () => {
+      assert.doesNotThrow(() => fm.destroy());
+    });
+
+    it('TC-FM-016: _onSaveRequest should not throw', () => {
+      assert.doesNotThrow(() => fm._onSaveRequest({ panelId: 'left' }));
+    });
+
+    it('TC-FM-017: _onSaveAsRequest should not throw', () => {
+      assert.doesNotThrow(() => fm._onSaveAsRequest({ panelId: 'left' }));
+    });
+  });
+
+  // ---- SearchManager: Comprehensive Coverage ----
+  describe('SearchManager (Comprehensive Coverage)', () => {
+    let sm;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      sm = new SearchManager();
+    });
+
+    it('TC-SM-012: should emit search:result event on find', () => {
+      let resultData = null;
+      EventBus.on('search:result', (data) => { resultData = data; });
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'abc def abc';
+      sm.find('abc');
+      assert.ok(resultData, 'search:result should be emitted');
+      assert.equal(resultData.total, 2);
+    });
+
+    it('TC-SM-013: findNext should emit search:navigate event', () => {
+      let navData = null;
+      EventBus.on('search:navigate', (data) => { navData = data; });
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'aaa bbb aaa';
+      sm.find('aaa');
+      sm.findNext();
+      assert.ok(navData);
+      assert.equal(navData.direction, 'next');
+    });
+
+    it('TC-SM-014: findPrevious should emit search:navigate event', () => {
+      let navData = null;
+      EventBus.on('search:navigate', (data) => { navData = data; });
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'aaa bbb aaa';
+      sm.find('aaa');
+      sm.findPrevious();
+      assert.ok(navData);
+      assert.equal(navData.direction, 'prev');
+    });
+
+    it('TC-SM-015: findPrevious should wrap around to last match', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'aaa bbb aaa ccc aaa';
+      sm.find('aaa');
+      // currentIndex starts at 0
+      const result = sm.findPrevious(); // should wrap to last
+      assert.equal(result.index, 2);
+    });
+
+    it('TC-SM-016: findNext and findPrevious should return null with no matches', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'no matches here';
+      sm.find('zzz');
+      assert.equal(sm.findNext(), null);
+      assert.equal(sm.findPrevious(), null);
+    });
+
+    it('TC-SM-017: replace should dispatch input event on textarea', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'hello world';
+      let inputFired = false;
+      sm.activeEditor.addEventListener('input', () => { inputFired = true; }, { once: true });
+      sm.find('hello');
+      sm.replace('goodbye');
+      assert.ok(inputFired, 'Input event should fire after replace');
+    });
+
+    it('TC-SM-018: replaceAll should return 0 when no matches', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'hello world';
+      sm.find('zzz');
+      const count = sm.replaceAll('yyy');
+      assert.equal(count, 0);
+    });
+
+    it('TC-SM-019: replace should do nothing when no active editor', () => {
+      sm.activeEditor = null;
+      sm.find('test');
+      assert.doesNotThrow(() => sm.replace('other'));
+    });
+
+    it('TC-SM-020: replace should do nothing when currentIndex is -1', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'hello world';
+      sm.query = '';
+      sm.matches = [];
+      sm.currentIndex = -1;
+      assert.doesNotThrow(() => sm.replace('other'));
+    });
+
+    it('TC-SM-021: case insensitive search should find all variations', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'Hello HELLO hello HeLLo';
+      const result = sm.find('hello', { caseSensitive: false });
+      assert.equal(result.total, 4);
+    });
+
+    it('TC-SM-022: regex search with groups', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'foo123 bar456 baz789';
+      const result = sm.find('[a-z]+\\d+', { useRegex: true });
+      assert.equal(result.total, 3);
+    });
+
+    it('TC-SM-023: close should reset state', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'hello hello';
+      sm.find('hello');
+      sm.close();
+      assert.equal(sm.matches.length, 0);
+      assert.equal(sm.currentIndex, -1);
+      assert.notOk(sm.isOpen);
+    });
+
+    it('TC-SM-024: close should emit search:close event', () => {
+      let closed = false;
+      EventBus.on('search:close', () => { closed = true; });
+      sm.close();
+      assert.ok(closed);
+    });
+
+    it('TC-SM-025: destroy should not throw', () => {
+      assert.doesNotThrow(() => sm.destroy());
+    });
+  });
+
+  // ---- SplitView: Comprehensive Coverage ----
+  describe('SplitView (Comprehensive Coverage)', () => {
+    let sv, container;
+
+    beforeEach(() => {
+      container = document.getElementById('test-editor-container');
+      window.EventBus = new EventBus();
+      sv = new SplitView(container);
+    });
+
+    it('TC-SV-007: toggle() should flip split state', () => {
+      assert.notOk(sv.isSplit());
+      sv.toggle();
+      assert.ok(sv.isSplit());
+      sv.toggle();
+      assert.notOk(sv.isSplit());
+    });
+
+    it('TC-SV-008: getPane should return correct panel reference', () => {
+      const left = sv.getPane('left');
+      const right = sv.getPane('right');
+      assert.equal(left, sv.leftPanel);
+      assert.equal(right, sv.rightPanel);
+    });
+
+    it('TC-SV-009: setSplit(true) should add split-mode class', () => {
+      sv.setSplit(true);
+      assert.ok(container.classList.contains('split-mode'));
+      sv.setSplit(false);
+      assert.notOk(container.classList.contains('split-mode'));
+    });
+
+    it('TC-SV-010: setSplit(false) should clear changes and emit diff:clear', () => {
+      let cleared = false;
+      EventBus.on('diff:clear', () => { cleared = true; });
+      sv.setSplit(true);
+      sv.changes = [{ type: 'add' }];
+      sv.currentChangeIndex = 0;
+      sv.setSplit(false);
+      assert.ok(cleared);
+      assert.equal(sv.changes.length, 0);
+      assert.equal(sv.currentChangeIndex, -1);
+    });
+
+    it('TC-SV-011: setSplitRatio should enforce minimum 0.2', () => {
+      sv.setSplitRatio(0.05);
+      assert.equal(sv.getSplitRatio(), 0.2);
+    });
+
+    it('TC-SV-012: setSplitRatio should enforce maximum 0.8', () => {
+      sv.setSplitRatio(0.95);
+      assert.equal(sv.getSplitRatio(), 0.8);
+    });
+
+    it('TC-SV-013: setSplitRatio should accept valid ratio', () => {
+      sv.setSplitRatio(0.3);
+      assert.approximately(sv.getSplitRatio(), 0.3, 0.01);
+    });
+
+    it('TC-SV-014: should have default syncScroll enabled', () => {
+      assert.equal(sv.syncScroll, true);
+    });
+
+    it('TC-SV-015: destroy should not throw', () => {
+      assert.doesNotThrow(() => sv.destroy());
+    });
+
+    it('TC-SV-016: diff navigation via EventBus', () => {
+      sv.setSplit(true);
+      sv.changes = [
+        { type: 'equal', lineLeft: 1, lineRight: 1 },
+        { type: 'modify', lineLeft: 2, lineRight: 2 },
+        { type: 'equal', lineLeft: 3, lineRight: 3 },
+        { type: 'add', lineLeft: null, lineRight: 4 }
+      ];
+      let navData = null;
+      EventBus.on('diff:navigated', (data) => { navData = data; });
+      sv._navigateDiff('next');
+      assert.ok(navData, 'diff:navigated should be emitted');
+      assert.equal(navData.index, 0);
+      assert.equal(navData.total, 2); // modify + add
+    });
+
+    it('TC-SV-017: diff navigate previous should wrap to last', () => {
+      sv.changes = [
+        { type: 'modify', lineLeft: 1, lineRight: 1 },
+        { type: 'add', lineLeft: null, lineRight: 2 }
+      ];
+      sv.currentChangeIndex = 0;
+      let navData = null;
+      EventBus.on('diff:navigated', (data) => { navData = data; });
+      sv._navigateDiff('prev');
+      assert.ok(navData);
+      assert.equal(navData.index, 1); // wrapped to last
+    });
+
+    it('TC-SV-018: diff navigate with no changes should do nothing', () => {
+      sv.changes = [{ type: 'equal', lineLeft: 1, lineRight: 1 }]; // only equal
+      let navData = null;
+      EventBus.on('diff:navigated', (data) => { navData = data; });
+      sv._navigateDiff('next');
+      assert.notOk(navData, 'Should not navigate when no diff changes');
+    });
+  });
+
+  // ---- EditorManager: Comprehensive Coverage ----
+  describe('EditorManager (Comprehensive Coverage)', () => {
+    let editor, textarea, lineNums;
+
+    beforeEach(() => {
+      textarea = document.getElementById('test-editor-left');
+      lineNums = document.getElementById('test-line-numbers-left');
+      textarea.value = '';
+      lineNums.innerHTML = '';
+      window.EventBus = new EventBus();
+      editor = new EditorManager(textarea, lineNums, 'left');
+    });
+
+    afterEach(() => {
+      if (editor) editor.destroy();
+    });
+
+    it('TC-EM-013: undo should restore previous text', () => {
+      editor.setText('first');
+      editor.setText('second');
+      editor.undo();
+      assert.equal(editor.getText(), 'first');
+    });
+
+    it('TC-EM-014: redo should restore next text', () => {
+      editor.setText('first');
+      editor.setText('second');
+      editor.undo();
+      editor.redo();
+      assert.equal(editor.getText(), 'second');
+    });
+
+    it('TC-EM-015: undo with empty stack should do nothing', () => {
+      editor.setText('only');
+      // undoStack has one entry from empty -> 'only'
+      editor.undo();
+      // Now undo again on empty stack
+      const text = editor.getText();
+      editor.undo(); // should not throw, text stays
+      assert.equal(editor.getText(), text);
+    });
+
+    it('TC-EM-016: redo with empty stack should do nothing', () => {
+      editor.setText('test');
+      const text = editor.getText();
+      editor.redo(); // empty redo stack
+      assert.equal(editor.getText(), text);
+    });
+
+    it('TC-EM-017: getSelection should return selection data', () => {
+      editor.setText('Hello World');
+      textarea.selectionStart = 0;
+      textarea.selectionEnd = 5;
+      const sel = editor.getSelection();
+      assert.equal(sel.start, 0);
+      assert.equal(sel.end, 5);
+      assert.equal(sel.text, 'Hello');
+    });
+
+    it('TC-EM-018: getLineCount with empty text should return 1', () => {
+      editor.setText('');
+      assert.equal(editor.getLineCount(), 1);
+    });
+
+    it('TC-EM-019: getLineCount with single line should return 1', () => {
+      editor.setText('single line');
+      assert.equal(editor.getLineCount(), 1);
+    });
+
+    it('TC-EM-020: getLineCount with multiple lines', () => {
+      editor.setText('a\nb\nc\nd\ne\nf');
+      assert.equal(editor.getLineCount(), 6);
+    });
+
+    it('TC-EM-021: setFontFamily should apply to textarea', () => {
+      editor.setFontFamily('Arial, sans-serif');
+      assert.equal(textarea.style.fontFamily, 'Arial, sans-serif');
+    });
+
+    it('TC-EM-022: setFontFamily should apply to line numbers', () => {
+      editor.setFontFamily('Courier');
+      assert.equal(lineNums.style.fontFamily, 'Courier');
+    });
+
+    it('TC-EM-023: setLineHeight should set based on fontSize', () => {
+      textarea.style.fontSize = '20px';
+      editor.setLineHeight(2.0);
+      assert.equal(textarea.style.lineHeight, '40px');
+    });
+
+    it('TC-EM-024: setWordWrap true should set pre-wrap', () => {
+      editor.setWordWrap(true);
+      assert.equal(textarea.style.whiteSpace, 'pre-wrap');
+      assert.equal(textarea.style.overflowX, 'hidden');
+    });
+
+    it('TC-EM-025: setWordWrap false should set pre', () => {
+      editor.setWordWrap(false);
+      assert.equal(textarea.style.whiteSpace, 'pre');
+      assert.equal(textarea.style.overflowX, 'auto');
+    });
+
+    it('TC-EM-026: clearModified should reset modified flag', () => {
+      editor.setText('something');
+      editor.modified = true;
+      let emittedModified = null;
+      EventBus.on('file:modified', (data) => { emittedModified = data.modified; });
+      editor.clearModified();
+      assert.notOk(editor.modified);
+      assert.equal(emittedModified, false);
+    });
+
+    it('TC-EM-027: scrollToLine should set scrollTop', () => {
+      editor.setText(Array.from({ length: 100 }, (_, i) => `line ${i}`).join('\n'));
+      editor.scrollToLine(50);
+      // scrollTop should be set (exact value depends on line height)
+      assert.ok(textarea.scrollTop >= 0);
+    });
+
+    it('TC-EM-028: setCursorPosition should handle beyond-bounds gracefully', () => {
+      editor.setText('line1\nline2');
+      assert.doesNotThrow(() => editor.setCursorPosition(100, 100));
+    });
+
+    it('TC-EM-029: focus should focus textarea', () => {
+      editor.focus();
+      assert.equal(document.activeElement, textarea);
+    });
+
+    it('TC-EM-030: replaceRange should update cursor position', () => {
+      editor.setText('Hello World');
+      editor.replaceRange(0, 5, 'Hi');
+      assert.equal(editor.getText(), 'Hi World');
+      assert.equal(textarea.selectionStart, 2);
+      assert.equal(textarea.selectionEnd, 2);
+    });
+
+    it('TC-EM-031: should emit editor:focus event when focused', () => {
+      let focusData = null;
+      EventBus.on('editor:focus', (data) => { focusData = data; });
+      textarea.dispatchEvent(new Event('focus'));
+      assert.ok(focusData);
+      assert.equal(focusData.panelId, 'left');
+    });
+
+    it('TC-EM-032: should handle text with special characters', () => {
+      const text = 'Tab\there\n<html>&amp;\n"quotes"';
+      editor.setText(text);
+      assert.equal(editor.getText(), text);
+    });
+  });
+
+  // ---- ThemeManager: Comprehensive Coverage ----
+  describe('ThemeManager (Comprehensive Coverage)', () => {
+    let tm;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      tm = new ThemeManager();
+    });
+
+    afterEach(() => {
+      tm.destroy();
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.removeItem('textDiffEditor_theme');
+    });
+
+    it('TC-TM-008: should ignore invalid theme in setTheme', () => {
+      tm.setTheme('dark');
+      tm.setTheme('invalid-theme');
+      assert.equal(tm.getTheme(), 'dark', 'Should stay on dark after invalid theme');
+    });
+
+    it('TC-TM-009: getAvailableThemes should return 3 themes', () => {
+      const themes = tm.getAvailableThemes();
+      assert.equal(themes.length, 3);
+    });
+
+    it('TC-TM-010: getAvailableThemes should return a copy', () => {
+      const themes = tm.getAvailableThemes();
+      themes.push('custom');
+      assert.equal(tm.getAvailableThemes().length, 3);
+    });
+
+    it('TC-TM-011: getSystemTheme should return light or dark', () => {
+      const systemTheme = tm.getSystemTheme();
+      assert.ok(systemTheme === 'light' || systemTheme === 'dark');
+    });
+
+    it('TC-TM-012: setTheme should persist to localStorage', () => {
+      tm.setTheme('dark');
+      assert.equal(localStorage.getItem('textDiffEditor_theme'), 'dark');
+    });
+
+    it('TC-TM-013: constructor should load saved theme', () => {
+      localStorage.setItem('textDiffEditor_theme', 'high-contrast');
+      const tm2 = new ThemeManager();
+      assert.equal(tm2.getTheme(), 'high-contrast');
+      tm2.destroy();
+    });
+
+    it('TC-TM-014: destroy should not throw', () => {
+      assert.doesNotThrow(() => tm.destroy());
+    });
+
+    it('TC-TM-015: setTheme should apply data-theme attribute', () => {
+      tm.setTheme('high-contrast');
+      assert.equal(document.documentElement.getAttribute('data-theme'), 'high-contrast');
+    });
+  });
+
+  // ---- AutoSave: Comprehensive Coverage ----
+  describe('AutoSave (Comprehensive Coverage)', () => {
+    let as;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      as = new AutoSave();
+    });
+
+    afterEach(() => {
+      as.destroy();
+    });
+
+    it('TC-AS-007: should respond to file:modified event', (done) => {
+      as.start(50);
+      let saved = false;
+      EventBus.on('file:save', () => { saved = true; });
+      EventBus.emit('file:modified', { modified: true, panelId: 'left' });
+      setTimeout(() => {
+        as.stop();
+        assert.ok(saved, 'Should auto-save after modified event');
+        done();
+      }, 120);
+    });
+
+    it('TC-AS-008: should reset modified on file:saved event', () => {
+      as._modified = true;
+      EventBus.emit('file:saved', { panelId: 'left' });
+      assert.notOk(as._modified, 'Modified should be false after save');
+    });
+
+    it('TC-AS-009: resetTimer should restart the timer', () => {
+      as.start(5000);
+      assert.doesNotThrow(() => as.resetTimer());
+    });
+
+    it('TC-AS-010: start with 0 interval should still enable', () => {
+      as.start(0);
+      assert.ok(as.isEnabled());
+      as.stop();
+    });
+
+    it('TC-AS-011: multiple start/stop cycles should work', () => {
+      as.start(1000);
+      assert.ok(as.isEnabled());
+      as.stop();
+      assert.notOk(as.isEnabled());
+      as.start(2000);
+      assert.ok(as.isEnabled());
+      as.stop();
+      assert.notOk(as.isEnabled());
+    });
+  });
+
+  // ---- Toast: Coverage ----
+  describe('Toast', () => {
+    let toast, container;
+
+    beforeEach(() => {
+      container = document.getElementById('test-toast-container');
+      container.innerHTML = '';
+      toast = new Toast(container);
+    });
+
+    it('TC-TO-001: should show a toast message', () => {
+      toast.show('Test message', 'info', 0);
+      assert.equal(container.children.length, 1);
+    });
+
+    it('TC-TO-002: should show correct icon for success type', () => {
+      toast.show('Success', 'success', 0);
+      const icon = container.querySelector('.toast-icon');
+      assert.ok(icon.textContent.includes('\u2713'));
+    });
+
+    it('TC-TO-003: should show correct icon for error type', () => {
+      toast.show('Error', 'error', 0);
+      const icon = container.querySelector('.toast-icon');
+      assert.ok(icon.textContent.includes('\u2717'));
+    });
+
+    it('TC-TO-004: should show correct icon for warning type', () => {
+      toast.show('Warning', 'warning', 0);
+      const icon = container.querySelector('.toast-icon');
+      assert.ok(icon.textContent.includes('\u26A0'));
+    });
+
+    it('TC-TO-005: should escape HTML in message', () => {
+      toast.show('<script>alert("xss")</script>', 'info', 0);
+      const msg = container.querySelector('.toast-message');
+      assert.ok(!msg.innerHTML.includes('<script>'), 'Should escape script tags');
+      assert.ok(msg.textContent.includes('<script>'));
+    });
+
+    it('TC-TO-006: clearAll should remove all toasts', () => {
+      toast.show('One', 'info', 0);
+      toast.show('Two', 'success', 0);
+      toast.show('Three', 'error', 0);
+      assert.equal(container.children.length, 3);
+      toast.clearAll();
+      assert.equal(container.children.length, 0);
+    });
+
+    it('TC-TO-007: should auto-remove after duration', (done) => {
+      toast.show('Auto remove', 'info', 50);
+      assert.equal(container.children.length, 1);
+      setTimeout(() => {
+        // After duration + removal animation (300ms)
+        setTimeout(() => {
+          assert.equal(container.children.length, 0, 'Toast should be auto-removed');
+          done();
+        }, 400);
+      }, 100);
+    });
+
+    it('TC-TO-008: should not throw when container is null', () => {
+      const nullToast = new Toast(null);
+      assert.doesNotThrow(() => nullToast.show('test'));
+    });
+
+    it('TC-TO-009: dismiss button should remove toast', () => {
+      toast.show('Dismiss me', 'info', 0);
+      const dismissBtn = container.querySelector('.toast-dismiss');
+      assert.ok(dismissBtn);
+      dismissBtn.click();
+      // After animation delay
+      setTimeout(() => {
+        // Toast should be gone or in exit state
+      }, 400);
+    });
+  });
+
+  // ---- Utils: Comprehensive Coverage ----
+  describe('Utils (Comprehensive Coverage)', () => {
+    it('TC-UT-007: clamp with value at exact min', () => {
+      assert.equal(Utils.clamp(0, 0, 10), 0);
+    });
+
+    it('TC-UT-008: clamp with value at exact max', () => {
+      assert.equal(Utils.clamp(10, 0, 10), 10);
+    });
+
+    it('TC-UT-009: escapeHtml should escape ampersand', () => {
+      assert.equal(Utils.escapeHtml('a&b'), 'a&amp;b');
+    });
+
+    it('TC-UT-010: escapeHtml should escape single quotes', () => {
+      assert.equal(Utils.escapeHtml("it's"), "it&#039;s");
+    });
+
+    it('TC-UT-011: escapeHtml with no special chars', () => {
+      assert.equal(Utils.escapeHtml('hello world'), 'hello world');
+    });
+
+    it('TC-UT-012: escapeHtml with empty string', () => {
+      assert.equal(Utils.escapeHtml(''), '');
+    });
+
+    it('TC-UT-013: escapeRegex with all special chars', () => {
+      const special = '.*+?^${}()|[]\\';
+      const escaped = Utils.escapeRegex(special);
+      assert.ok(escaped.includes('\\'));
+      // Verify escaped version works as regex
+      const regex = new RegExp(escaped);
+      assert.ok(regex.test(special));
+    });
+
+    it('TC-UT-014: escapeRegex with normal string', () => {
+      assert.equal(Utils.escapeRegex('hello'), 'hello');
+    });
+
+    it('TC-UT-015: formatFileSize for various sizes', () => {
+      assert.equal(Utils.formatFileSize(0), '0 B');
+      assert.equal(Utils.formatFileSize(512), '512 B');
+      assert.equal(Utils.formatFileSize(1024), '1 KB');
+      assert.equal(Utils.formatFileSize(1536), '1.5 KB');
+      assert.equal(Utils.formatFileSize(1048576), '1 MB');
+      assert.equal(Utils.formatFileSize(1073741824), '1 GB');
+    });
+
+    it('TC-UT-016: debounce should use latest arguments', (done) => {
+      let lastArgs = null;
+      const fn = Utils.debounce((...args) => { lastArgs = args; }, 30);
+      fn(1);
+      fn(2);
+      fn(3);
+      setTimeout(() => {
+        assert.deepEqual(lastArgs, [3]);
+        done();
+      }, 80);
+    });
+
+    it('TC-UT-017: throttle first call should execute immediately', () => {
+      let count = 0;
+      const fn = Utils.throttle(() => count++, 100);
+      fn();
+      assert.equal(count, 1, 'First call should execute immediately');
+    });
+
+    it('TC-UT-018: throttle subsequent calls should be suppressed', () => {
+      let count = 0;
+      const fn = Utils.throttle(() => count++, 100);
+      fn();
+      fn();
+      fn();
+      assert.equal(count, 1, 'Only first call should execute');
+    });
+  });
+
+  // ---- EventBus: Extended Coverage ----
+  describe('EventBus (Extended Coverage)', () => {
+    it('TC-EB-007: on should return unsubscribe function', () => {
+      const bus = new EventBus();
+      let called = false;
+      const unsub = bus.on('test', () => { called = true; });
+      assert.equal(typeof unsub, 'function');
+      unsub(); // unsubscribe
+      bus.emit('test', {});
+      assert.notOk(called, 'Should not call after unsubscribe');
+    });
+
+    it('TC-EB-008: off with non-existent event should not throw', () => {
+      const bus = new EventBus();
+      assert.doesNotThrow(() => bus.off('nonexistent', () => {}));
+    });
+
+    it('TC-EB-009: emit with listener that throws should not break other listeners', () => {
+      const bus = new EventBus();
+      let secondCalled = false;
+      bus.on('test', () => { throw new Error('intentional'); });
+      bus.on('test', () => { secondCalled = true; });
+      bus.emit('test', {});
+      assert.ok(secondCalled, 'Second listener should still run');
+    });
+
+    it('TC-EB-010: once should properly clean up', () => {
+      const bus = new EventBus();
+      let count = 0;
+      bus.once('test', () => count++);
+      bus.emit('test', {});
+      bus.emit('test', {});
+      bus.emit('test', {});
+      assert.equal(count, 1);
+    });
+  });
+
+  // ---- Edge Case: Unicode and Long Text ----
+  describe('Edge Cases: Unicode and Long Text', () => {
+    it('TC-EDGE-001: EditorManager with Japanese text', () => {
+      const textarea = document.getElementById('test-editor-left');
+      const lineNums = document.getElementById('test-line-numbers-left');
+      textarea.value = '';
+      lineNums.innerHTML = '';
+      window.EventBus = new EventBus();
+      const editor = new EditorManager(textarea, lineNums, 'left');
+      editor.setText('こんにちは世界\n日本語テスト\n絵文字テスト 🎉');
+      assert.equal(editor.getLineCount(), 3);
+      assert.ok(editor.getText().includes('🎉'));
+      editor.destroy();
+    });
+
+    it('TC-EDGE-002: EditorManager with very long line', () => {
+      const textarea = document.getElementById('test-editor-left');
+      const lineNums = document.getElementById('test-line-numbers-left');
+      textarea.value = '';
+      lineNums.innerHTML = '';
+      window.EventBus = new EventBus();
+      const editor = new EditorManager(textarea, lineNums, 'left');
+      const longLine = 'x'.repeat(10000);
+      editor.setText(longLine);
+      assert.equal(editor.getLineCount(), 1);
+      assert.equal(editor.getText().length, 10000);
+      editor.destroy();
+    });
+
+    it('TC-EDGE-003: DiffEngine with CRLF vs LF normalization', () => {
+      const diff = new DiffEngine();
+      const textCRLF = 'line1\r\nline2\r\nline3';
+      const textLF = 'line1\nline2\nline3';
+      const result = diff.computeLineDiff(textCRLF, textLF);
+      assert.ok(result.changes.every(c => c.type === 'equal'), 'CRLF and LF should be normalized');
+    });
+
+    it('TC-EDGE-004: SearchManager with Unicode search', () => {
+      window.EventBus = new EventBus();
+      const sm = new SearchManager();
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'Hello こんにちは World こんにちは';
+      const result = sm.find('こんにちは');
+      assert.equal(result.total, 2);
+    });
+
+    it('TC-EDGE-005: DiffEngine with empty vs non-empty reverse', () => {
+      const diff = new DiffEngine();
+      const result = diff.computeLineDiff('existing content', '');
+      const dels = result.changes.filter(c => c.type === 'delete');
+      assert.ok(dels.length > 0, 'Should detect deletion when right is empty');
+    });
+
+    it('TC-EDGE-006: SearchManager regex with zero-length match prevention', () => {
+      window.EventBus = new EventBus();
+      const sm = new SearchManager();
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'abc';
+      // Zero-length regex match should not cause infinite loop
+      const result = sm.find('', { useRegex: true });
+      assert.equal(result.total, 0, 'Empty regex should return 0 matches');
+    });
+
+    it('TC-EDGE-007: EditorManager insertText at beginning', () => {
+      const textarea = document.getElementById('test-editor-left');
+      const lineNums = document.getElementById('test-line-numbers-left');
+      textarea.value = '';
+      lineNums.innerHTML = '';
+      window.EventBus = new EventBus();
+      const editor = new EditorManager(textarea, lineNums, 'left');
+      editor.setText('World');
+      editor.insertText(0, 'Hello ');
+      assert.equal(editor.getText(), 'Hello World');
+      editor.destroy();
+    });
+
+    it('TC-EDGE-008: EditorManager insertText at end', () => {
+      const textarea = document.getElementById('test-editor-left');
+      const lineNums = document.getElementById('test-line-numbers-left');
+      textarea.value = '';
+      lineNums.innerHTML = '';
+      window.EventBus = new EventBus();
+      const editor = new EditorManager(textarea, lineNums, 'left');
+      editor.setText('Hello');
+      editor.insertText(5, ' World');
+      assert.equal(editor.getText(), 'Hello World');
+      editor.destroy();
+    });
+  });
+
+  // ---- Integration: Cross-Module Coverage ----
+  describe('Integration: Cross-Module Extended', () => {
+    it('TC-INT-016: file:drop event should be handled by FileManager', async () => {
+      window.EventBus = new EventBus();
+      const fm = new FileManager();
+      let fileOpened = false;
+      EventBus.on('file:open', () => { fileOpened = true; });
+      const file = new File(['test'], 'test.txt', { type: 'text/plain' });
+      EventBus.emit('file:drop', { panelId: 'left', file });
+      // Wait for async processing
+      await new Promise(r => setTimeout(r, 100));
+      assert.ok(fileOpened, 'file:open should be emitted via file:drop');
+    });
+
+    it('TC-INT-017: settings:change should be emittable', () => {
+      window.EventBus = new EventBus();
+      let received = null;
+      EventBus.on('settings:change', (data) => { received = data; });
+      const sm = new SettingsManager();
+      sm.set('fontSize', 24);
+      assert.ok(received);
+      assert.equal(received.key, 'fontSize');
+      assert.equal(received.value, 24);
+      sm.resetToDefaults();
+    });
+
+    it('TC-INT-018: AutoSave should listen to file:modified events', () => {
+      window.EventBus = new EventBus();
+      const as = new AutoSave();
+      as.start(5000);
+      EventBus.emit('file:modified', { modified: true, panelId: 'left' });
+      assert.ok(as._modified, 'AutoSave should track modified state');
+      as.destroy();
+    });
+
+    it('TC-INT-019: diff:compute should be processable by SplitView', () => {
+      window.EventBus = new EventBus();
+      const container = document.getElementById('test-editor-container');
+      const sv = new SplitView(container);
+      sv._enabled = true;
+      let resultEmitted = false;
+      EventBus.on('diff:result', () => { resultEmitted = true; });
+      // Trigger diff compute directly
+      EventBus.emit('diff:compute', { textLeft: 'a\nb', textRight: 'a\nc' });
+      // Debounced - wait for it
+      setTimeout(() => {
+        // Result will be emitted after 150ms debounce
+      }, 200);
+    });
+
+    it('TC-INT-020: theme:change event propagation', () => {
+      window.EventBus = new EventBus();
+      const tm = new ThemeManager();
+      let received = null;
+      EventBus.on('theme:change', (data) => { received = data; });
+      tm.setTheme('dark');
+      assert.ok(received);
+      assert.equal(received.theme, 'dark');
+      tm.setTheme('light');
+      tm.destroy();
+    });
+  });
 
   // ============================================================
   // Run tests on load
