@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text Diff Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       CSS Custom Properties - Theme System
+       ============================================================ */
+    :root {
+      /* Typography */
+      --font-ui: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+      --font-size-base: 18px;
+      --font-size-sm: 13px;
+      --font-size-xs: 11px;
+      --line-height: 1.5;
+
+      /* Spacing */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 12px;
+      --space-lg: 16px;
+      --space-xl: 24px;
+
+      /* Radius */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 20px;
+
+      /* Shadows */
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+      --shadow-toolbar: 0 1px 0 rgba(0,0,0,0.06);
+
+      /* Transitions */
+      --transition-fast: 120ms ease;
+      --transition-normal: 200ms ease;
+      --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ---- Light Theme (Warm Parchment) ---- */
+    [data-theme="light"] {
+      --bg-app: #FAF8F5;
+      --bg-toolbar: rgba(255, 255, 253, 0.82);
+      --bg-editor: #FFFFFE;
+      --bg-line-numbers: #F5F3F0;
+      --bg-status-bar: rgba(245, 243, 240, 0.92);
+      --bg-search: rgba(255, 255, 253, 0.95);
+      --bg-panel-header: #F0EDE8;
+      --bg-hover: rgba(0, 0, 0, 0.04);
+      --bg-active: rgba(0, 0, 0, 0.07);
+      --bg-toast: #FFFFFE;
+      --bg-splitter: #E8E4DE;
+
+      --text-primary: #1A1815;
+      --text-secondary: #6B6560;
+      --text-tertiary: #9E9890;
+      --text-line-number: #B8B2AA;
+      --text-placeholder: #C5BFBA;
+
+      --border-primary: rgba(0, 0, 0, 0.08);
+      --border-subtle: rgba(0, 0, 0, 0.04);
+      --border-focus: #8B7355;
+
+      --accent: #8B7355;
+      --accent-hover: #7A6548;
+      --accent-light: rgba(139, 115, 85, 0.1);
+
+      --diff-add-bg: rgba(72, 160, 80, 0.1);
+      --diff-add-text: #2D6E33;
+      --diff-add-inline: rgba(72, 160, 80, 0.22);
+      --diff-del-bg: rgba(210, 70, 60, 0.08);
+      --diff-del-text: #A03030;
+      --diff-del-inline: rgba(210, 70, 60, 0.2);
+      --diff-mod-bg: rgba(200, 160, 50, 0.08);
+      --diff-mod-text: #856B20;
+
+      --toast-success: #48A050;
+      --toast-error: #D2463C;
+      --toast-warning: #D4A820;
+      --toast-info: #4A90C4;
+
+      --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+      --scrollbar-track: transparent;
+
+      --toolbar-blur: blur(20px) saturate(180%);
+    }
+
+    /* ---- Dark Theme (Deep Ink) ---- */
+    [data-theme="dark"] {
+      --bg-app: #1C1B22;
+      --bg-toolbar: rgba(30, 29, 36, 0.85);
+      --bg-editor: #232229;
+      --bg-line-numbers: #1E1D24;
+      --bg-status-bar: rgba(28, 27, 34, 0.92);
+      --bg-search: rgba(35, 34, 41, 0.95);
+      --bg-panel-header: #28272E;
+      --bg-hover: rgba(255, 255, 255, 0.05);
+      --bg-active: rgba(255, 255, 255, 0.08);
+      --bg-toast: #2C2B33;
+      --bg-splitter: #38373F;
+
+      --text-primary: #ECEAE7;
+      --text-secondary: #9E9B96;
+      --text-tertiary: #6D6A65;
+      --text-line-number: #504E4A;
+      --text-placeholder: #5A5856;
+
+      --border-primary: rgba(255, 255, 255, 0.08);
+      --border-subtle: rgba(255, 255, 255, 0.04);
+      --border-focus: #C4A46C;
+
+      --accent: #C4A46C;
+      --accent-hover: #D4B47C;
+      --accent-light: rgba(196, 164, 108, 0.12);
+
+      --diff-add-bg: rgba(72, 160, 80, 0.12);
+      --diff-add-text: #6BC975;
+      --diff-add-inline: rgba(72, 160, 80, 0.25);
+      --diff-del-bg: rgba(210, 70, 60, 0.1);
+      --diff-del-text: #E87070;
+      --diff-del-inline: rgba(210, 70, 60, 0.22);
+      --diff-mod-bg: rgba(200, 160, 50, 0.1);
+      --diff-mod-text: #E0C060;
+
+      --toast-success: #6BC975;
+      --toast-error: #E87070;
+      --toast-warning: #E0C060;
+      --toast-info: #6CA8D8;
+
+      --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+      --scrollbar-track: transparent;
+
+      --toolbar-blur: blur(20px) saturate(150%);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.25);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+      --shadow-toolbar: 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    /* ---- High Contrast Theme ---- */
+    [data-theme="high-contrast"] {
+      --bg-app: #000000;
+      --bg-toolbar: rgba(10, 10, 10, 0.95);
+      --bg-editor: #0A0A0A;
+      --bg-line-numbers: #050505;
+      --bg-status-bar: rgba(5, 5, 5, 0.95);
+      --bg-search: rgba(15, 15, 15, 0.98);
+      --bg-panel-header: #111111;
+      --bg-hover: rgba(255, 255, 255, 0.08);
+      --bg-active: rgba(255, 255, 255, 0.14);
+      --bg-toast: #1A1A1A;
+      --bg-splitter: #333333;
+
+      --text-primary: #FFFFFF;
+      --text-secondary: #CCCCCC;
+      --text-tertiary: #888888;
+      --text-line-number: #666666;
+      --text-placeholder: #555555;
+
+      --border-primary: rgba(255, 255, 255, 0.3);
+      --border-subtle: rgba(255, 255, 255, 0.15);
+      --border-focus: #FFDD00;
+
+      --accent: #FFDD00;
+      --accent-hover: #FFE740;
+      --accent-light: rgba(255, 221, 0, 0.15);
+
+      --diff-add-bg: rgba(0, 255, 0, 0.12);
+      --diff-add-text: #00FF00;
+      --diff-add-inline: rgba(0, 255, 0, 0.3);
+      --diff-del-bg: rgba(255, 0, 0, 0.1);
+      --diff-del-text: #FF4444;
+      --diff-del-inline: rgba(255, 0, 0, 0.25);
+      --diff-mod-bg: rgba(255, 221, 0, 0.1);
+      --diff-mod-text: #FFDD00;
+
+      --toast-success: #00FF00;
+      --toast-error: #FF4444;
+      --toast-warning: #FFDD00;
+      --toast-info: #44AAFF;
+
+      --scrollbar-thumb: rgba(255, 255, 255, 0.3);
+      --scrollbar-track: transparent;
+
+      --toolbar-blur: none;
+      --shadow-sm: 0 0 0 1px rgba(255,255,255,0.15);
+      --shadow-md: 0 0 0 1px rgba(255,255,255,0.2);
+      --shadow-lg: 0 0 0 2px rgba(255,255,255,0.25);
+      --shadow-toolbar: 0 1px 0 rgba(255,255,255,0.15);
+    }
+
+    /* ============================================================
+       Global Reset & Base
+       ============================================================ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: var(--font-size-base);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg-app);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--scrollbar-track);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    /* ============================================================
+       Toolbar
+       ============================================================ */
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-sm) var(--space-lg);
+      background: var(--bg-toolbar);
+      backdrop-filter: var(--toolbar-blur);
+      -webkit-backdrop-filter: var(--toolbar-blur);
+      border-bottom: 1px solid var(--border-primary);
+      box-shadow: var(--shadow-toolbar);
+      z-index: 100;
+      min-height: 52px;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .toolbar-separator {
+      width: 1px;
+      height: 28px;
+      background: var(--border-primary);
+      margin: 0 var(--space-sm);
+      flex-shrink: 0;
+    }
+
+    .toolbar-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-xs) var(--space-sm);
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background var(--transition-fast), color var(--transition-fast);
+      min-height: 36px;
+      min-width: 36px;
+      justify-content: center;
+      user-select: none;
+    }
+
+    .toolbar-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .toolbar-btn:active {
+      background: var(--bg-active);
+    }
+
+    .toolbar-btn.active {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .toolbar-btn:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 1px;
+    }
+
+    .toolbar-icon {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .toolbar-label {
+      font-size: var(--font-size-xs);
+      letter-spacing: 0.02em;
+    }
+
+    /* Zoom Group */
+    .toolbar-zoom-group {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      position: relative;
+    }
+
+    .toolbar-zoom-display {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      font-weight: 500;
+      color: var(--text-secondary);
+      min-width: 42px;
+      text-align: center;
+      cursor: pointer;
+      padding: var(--space-xs);
+      border-radius: var(--radius-sm);
+      transition: background var(--transition-fast);
+    }
+
+    .toolbar-zoom-display:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .zoom-presets {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: var(--space-xs);
+      background: var(--bg-toast);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      padding: var(--space-xs);
+      z-index: 200;
+    }
+
+    .toolbar-zoom-group:hover .zoom-presets,
+    .toolbar-zoom-group:focus-within .zoom-presets {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .zoom-preset-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      text-align: right;
+      white-space: nowrap;
+      transition: background var(--transition-fast);
+    }
+
+    .zoom-preset-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* ============================================================
+       Search Bar
+       ============================================================ */
+    #search-bar {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+      padding: var(--space-sm) var(--space-lg);
+      background: var(--bg-search);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-primary);
+      flex-shrink: 0;
+      z-index: 90;
+    }
+
+    #search-bar[hidden] {
+      display: none;
+    }
+
+    .search-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .search-input-group {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      max-width: 420px;
+      background: var(--bg-editor);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-sm);
+      padding: 0 var(--space-sm);
+      transition: border-color var(--transition-fast);
+    }
+
+    .search-input-group:focus-within {
+      border-color: var(--border-focus);
+    }
+
+    .search-icon {
+      font-size: 14px;
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+    }
+
+    .search-field {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      padding: var(--space-sm);
+      outline: none;
+      min-width: 0;
+    }
+
+    .search-field::placeholder {
+      color: var(--text-placeholder);
+    }
+
+    .search-toggle-btn {
+      border: 1px solid var(--border-primary);
+      background: transparent;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      min-height: 30px;
+      transition: all var(--transition-fast);
+    }
+
+    .search-toggle-btn.active,
+    .search-toggle-btn[aria-pressed="true"] {
+      background: var(--accent-light);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .search-nav-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 16px;
+      padding: var(--space-xs);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      min-width: 30px;
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--transition-fast);
+    }
+
+    .search-nav-btn:hover {
+      background: var(--bg-hover);
+    }
+
+    .search-match-count {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      min-width: 70px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .search-close-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-tertiary);
+      font-size: 18px;
+      padding: var(--space-xs);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      min-width: 30px;
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition-fast);
+    }
+
+    .search-close-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .search-action-btn {
+      border: 1px solid var(--border-primary);
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: var(--font-size-xs);
+      font-weight: 500;
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      min-height: 30px;
+      transition: all var(--transition-fast);
+    }
+
+    .search-action-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .replace-row {
+      padding-left: 0;
+    }
+
+    .replace-row[hidden] {
+      display: none;
+    }
+
+    /* ============================================================
+       Editor Layout (CSS Grid)
+       ============================================================ */
+    #editor-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .editor-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+    }
+
+    #panel-left {
+      flex: 1;
+    }
+
+    #panel-right {
+      flex: 1;
+    }
+
+    #panel-right[hidden] {
+      display: none;
+    }
+
+    .split-mode #panel-left,
+    .split-mode #panel-right {
+      flex: none;
+    }
+
+    /* Panel Header */
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-xs) var(--space-md);
+      background: var(--bg-panel-header);
+      border-bottom: 1px solid var(--border-subtle);
+      min-height: 32px;
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* Editor Inner: line numbers + textarea */
+    .editor-inner {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .line-numbers {
+      width: 52px;
+      flex-shrink: 0;
+      background: var(--bg-line-numbers);
+      color: var(--text-line-number);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-base);
+      line-height: calc(var(--font-size-base) * var(--line-height));
+      padding: var(--space-md) var(--space-sm);
+      text-align: right;
+      overflow: hidden;
+      user-select: none;
+      border-right: 1px solid var(--border-subtle);
+    }
+
+    .line-number {
+      height: calc(var(--font-size-base) * var(--line-height));
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: var(--space-xs);
+    }
+
+    .editor-textarea {
+      flex: 1;
+      border: none;
+      outline: none;
+      resize: none;
+      background: var(--bg-editor);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-base);
+      line-height: calc(var(--font-size-base) * var(--line-height));
+      padding: var(--space-md);
+      tab-size: 4;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow: auto;
+      min-width: 0;
+    }
+
+    .editor-textarea::placeholder {
+      color: var(--text-placeholder);
+      font-style: italic;
+    }
+
+    .editor-textarea:focus {
+      background: var(--bg-editor);
+    }
+
+    .editor-textarea.drag-over {
+      background: var(--accent-light);
+      outline: 2px dashed var(--accent);
+      outline-offset: -4px;
+    }
+
+    /* ============================================================
+       Splitter
+       ============================================================ */
+    #splitter {
+      width: 8px;
+      background: var(--bg-splitter);
+      cursor: col-resize;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+      transition: background var(--transition-fast);
+    }
+
+    #splitter:hover,
+    #splitter:active {
+      background: var(--accent);
+    }
+
+    #splitter::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px;
+      height: 32px;
+      background: var(--text-tertiary);
+      border-radius: 1px;
+      opacity: 0.4;
+      transition: opacity var(--transition-fast);
+    }
+
+    #splitter:hover::after {
+      opacity: 0.8;
+    }
+
+    #splitter[hidden] {
+      display: none;
+    }
+
+    /* ============================================================
+       Diff Display (overlay highlights in panels)
+       ============================================================ */
+    .diff-line-add {
+      background: var(--diff-add-bg);
+    }
+    .diff-line-delete {
+      background: var(--diff-del-bg);
+    }
+    .diff-line-modify {
+      background: var(--diff-mod-bg);
+    }
+    .diff-inline-add {
+      background: var(--diff-add-inline);
+      border-radius: 2px;
+    }
+    .diff-inline-delete {
+      background: var(--diff-del-inline);
+      border-radius: 2px;
+      text-decoration: line-through;
+    }
+
+    /* Diff overlay container (rendered below textarea) */
+    .diff-overlay {
+      position: absolute;
+      top: 0;
+      left: 52px;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      overflow: hidden;
+      padding: var(--space-md);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-base);
+      line-height: calc(var(--font-size-base) * var(--line-height));
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      z-index: 0;
+    }
+
+    .diff-overlay-line {
+      min-height: calc(var(--font-size-base) * var(--line-height));
+      padding: 0 2px;
+      margin: 0 -2px;
+    }
+
+    /* ============================================================
+       Status Bar
+       ============================================================ */
+    #status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-xs) var(--space-lg);
+      background: var(--bg-status-bar);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border-primary);
+      min-height: 28px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .status-left,
+    .status-center,
+    .status-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .status-item {
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      white-space: nowrap;
+    }
+
+    .status-modified {
+      color: var(--accent);
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .status-zoom {
+      cursor: pointer;
+      padding: 2px var(--space-xs);
+      border-radius: var(--radius-sm);
+      transition: background var(--transition-fast);
+    }
+
+    .status-zoom:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+
+    /* ============================================================
+       Toast Notifications
+       ============================================================ */
+    #toast-container {
+      position: fixed;
+      top: 64px;
+      right: var(--space-lg);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      pointer-events: none;
+    }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-lg);
+      background: var(--bg-toast);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+      pointer-events: auto;
+      transform: translateX(120%);
+      opacity: 0;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+      max-width: 380px;
+    }
+
+    .toast-visible {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    .toast-exit {
+      transform: translateX(120%);
+      opacity: 0;
+    }
+
+    .toast-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .toast-success .toast-icon { color: var(--toast-success); }
+    .toast-error .toast-icon { color: var(--toast-error); }
+    .toast-warning .toast-icon { color: var(--toast-warning); }
+    .toast-info .toast-icon { color: var(--toast-info); }
+
+    .toast-success { border-left: 3px solid var(--toast-success); }
+    .toast-error { border-left: 3px solid var(--toast-error); }
+    .toast-warning { border-left: 3px solid var(--toast-warning); }
+    .toast-info { border-left: 3px solid var(--toast-info); }
+
+    .toast-message {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .toast-dismiss {
+      border: none;
+      background: transparent;
+      color: var(--text-tertiary);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 2px;
+      border-radius: var(--radius-sm);
+      transition: color var(--transition-fast);
+      flex-shrink: 0;
+    }
+
+    .toast-dismiss:hover {
+      color: var(--text-primary);
+    }
+
+    /* ============================================================
+       Welcome Overlay (shown when empty)
+       ============================================================ */
+    .welcome-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 5;
+      opacity: 0.6;
+    }
+
+    .welcome-overlay.hidden {
+      display: none;
+    }
+
+    .welcome-icon {
+      font-size: 48px;
+      margin-bottom: var(--space-lg);
+      opacity: 0.4;
+    }
+
+    .welcome-text {
+      font-size: var(--font-size-sm);
+      color: var(--text-placeholder);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .welcome-kbd {
+      display: inline-block;
+      padding: 2px 6px;
+      background: var(--bg-hover);
+      border: 1px solid var(--border-primary);
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+    }
+
+    /* ============================================================
+       Keyboard Shortcuts Reference (bottom-right float)
+       ============================================================ */
+    .shortcut-hint {
+      position: absolute;
+      bottom: var(--space-sm);
+      right: var(--space-md);
+      font-size: var(--font-size-xs);
+      color: var(--text-placeholder);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* ============================================================
+       Responsive Adjustments
+       ============================================================ */
+    @media (max-width: 768px) {
+      .toolbar-label { display: none; }
+      .toolbar-separator { margin: 0 var(--space-xs); }
+      #toolbar { padding: var(--space-xs) var(--space-sm); }
+      .line-numbers { width: 40px; }
+      .search-input-group { max-width: 100%; }
+    }
+
+    /* ============================================================
+       Print Styles
+       ============================================================ */
+    @media print {
+      #toolbar, #status-bar, #search-bar, #splitter, #toast-container { display: none; }
+      .line-numbers { display: none; }
+      .editor-textarea { overflow: visible; white-space: pre-wrap; }
+      body { height: auto; overflow: visible; }
+    }
+
+    /* ============================================================
+       Focus Indicators (Accessibility)
+       ============================================================ */
+    :focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
+    }
+
+    .editor-textarea:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--border-focus);
+    }
+
+    /* ============================================================
+       Animation: Subtle entrance
+       ============================================================ */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    #editor-container {
+      animation: fadeInUp 0.4s ease-out;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toolbar -->
+  <div id="toolbar" role="toolbar" aria-label="Editor toolbar"></div>
+
+  <!-- Search Bar (hidden by default) -->
+  <div id="search-bar" hidden role="search" aria-label="Search and replace"></div>
+
+  <!-- Editor Panels -->
+  <div id="editor-container">
+    <!-- Left Panel (always visible) -->
+    <div id="panel-left" class="editor-panel">
+      <div class="panel-header">
+        <span class="panel-title">Original</span>
+      </div>
+      <div class="editor-inner">
+        <div id="line-numbers-left" class="line-numbers" aria-hidden="true"></div>
+        <textarea
+          id="editor-left"
+          class="editor-textarea"
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          placeholder="Open a file or start typing..."
+          aria-label="Left editor panel"
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- Splitter (hidden when not in split mode) -->
+    <div id="splitter" hidden role="separator" aria-label="Resize panels" tabindex="0"></div>
+
+    <!-- Right Panel (hidden when not in split mode) -->
+    <div id="panel-right" class="editor-panel" hidden>
+      <div class="panel-header">
+        <span class="panel-title">Modified</span>
+      </div>
+      <div class="editor-inner">
+        <div id="line-numbers-right" class="line-numbers" aria-hidden="true"></div>
+        <textarea
+          id="editor-right"
+          class="editor-textarea"
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          placeholder="Open a file to compare..."
+          aria-label="Right editor panel"
+        ></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="status-bar" role="status" aria-label="Editor status"></div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" aria-live="polite" aria-label="Notifications"></div>
+
+  <!-- Scripts (order matters - core first, then modules, then app init) -->
+  <script src="js/core.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/viewport.js"></script>
+  <script src="js/files.js"></script>
+  <script src="js/split-diff.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/ui.js"></script>
+
+  <!-- App Initialization -->
+  <script>
+    /**
+     * app.js (inline) - Application Wiring & Keyboard Shortcuts
+     * Connects all modules via EventBus
+     */
+    (function () {
+      'use strict';
+
+      // ============================================================
+      // Initialize all modules
+      // ============================================================
+      const themeManager = new ThemeManager();
+      const toast = new Toast();
+      const statusBar = new StatusBar();
+      const toolbar = new Toolbar();
+      const searchManager = new SearchManager();
+      const fileManager = new FileManager();
+      const autoSave = new AutoSave();
+
+      // Editor managers
+      const editorLeft = new EditorManager(
+        document.getElementById('editor-left'),
+        document.getElementById('line-numbers-left'),
+        'left'
+      );
+
+      const editorRight = new EditorManager(
+        document.getElementById('editor-right'),
+        document.getElementById('line-numbers-right'),
+        'right'
+      );
+
+      // Viewport controllers
+      const container = document.getElementById('editor-container');
+      const zoomController = new ZoomController(container, {
+        baseFontSize: Settings.get('fontSize'),
+        minZoom: 0.5,
+        maxZoom: 4.0
+      });
+
+      const panController = new PanController(container);
+
+      // Split view
+      const splitView = new SplitView(container);
+
+      // Apply initial settings
+      const initFontSize = Settings.get('fontSize');
+      editorLeft.setFontSize(initFontSize);
+      editorRight.setFontSize(initFontSize);
+      toolbar.updateThemeIcon(themeManager.getTheme());
+
+      // ============================================================
+      // EventBus Wiring: Toolbar Actions
+      // ============================================================
+      EventBus.on('toolbar:action', (data) => {
+        switch (data.action) {
+          case 'new':
+            fileManager.createNew('left');
+            editorLeft.setText('');
+            editorLeft.clearModified();
+            break;
+
+          case 'open':
+            fileManager.openFile('left');
+            break;
+
+          case 'save':
+            fileManager.saveFile('left', editorLeft.getText());
+            break;
+
+          case 'split':
+            splitView.toggle();
+            break;
+
+          case 'sync-scroll':
+            splitView.setSyncScroll(data.params.enabled);
+            break;
+
+          case 'theme-toggle':
+            themeManager.toggleTheme();
+            break;
+
+          case 'font-decrease': {
+            const size = Math.max(12, (parseFloat(editorLeft.textarea.style.fontSize) || initFontSize) - 2);
+            editorLeft.setFontSize(size);
+            editorRight.setFontSize(size);
+            Settings.set('fontSize', size);
+            break;
+          }
+
+          case 'font-increase': {
+            const size = Math.min(48, (parseFloat(editorLeft.textarea.style.fontSize) || initFontSize) + 2);
+            editorLeft.setFontSize(size);
+            editorRight.setFontSize(size);
+            Settings.set('fontSize', size);
+            break;
+          }
+
+          case 'zoom-in':
+            zoomController.zoomIn();
+            break;
+
+          case 'zoom-out':
+            zoomController.zoomOut();
+            break;
+        }
+      });
+
+      // ============================================================
+      // EventBus Wiring: File Operations
+      // ============================================================
+      EventBus.on('file:open', (data) => {
+        if (data.panelId === 'left') {
+          editorLeft.setText(data.content);
+          editorLeft.clearModified();
+          editorLeft.fileName = data.name;
+          editorLeft.fileHandle = data.handle;
+        } else {
+          editorRight.setText(data.content);
+          editorRight.clearModified();
+          editorRight.fileName = data.name;
+          editorRight.fileHandle = data.handle;
+        }
+      });
+
+      EventBus.on('file:new', (data) => {
+        if (data.panelId === 'left') {
+          editorLeft.setText('');
+          editorLeft.clearModified();
+        }
+      });
+
+      EventBus.on('file:save', (data) => {
+        if (data.panelId === 'left') {
+          fileManager.saveFile('left', editorLeft.getText());
+        }
+      });
+
+      // ============================================================
+      // EventBus Wiring: Toast
+      // ============================================================
+      EventBus.on('toast:show', (data) => {
+        toast.show(data.message, data.type, data.duration);
+      });
+
+      // ============================================================
+      // EventBus Wiring: Zoom
+      // ============================================================
+      EventBus.on('zoom:reset', () => {
+        zoomController.resetZoom();
+      });
+
+      EventBus.on('zoom:set', (data) => {
+        zoomController.setZoom(data.level);
+      });
+
+      // ============================================================
+      // EventBus Wiring: Diff Computation
+      // ============================================================
+      EventBus.on('editor:change', (data) => {
+        if (splitView.isSplit()) {
+          EventBus.emit('diff:compute', {
+            textLeft: editorLeft.getText(),
+            textRight: editorRight.getText()
+          });
+        }
+      });
+
+      EventBus.on('diff:navigated', (data) => {
+        const line = data.line;
+        editorLeft.scrollToLine(line);
+        if (splitView.isSplit()) {
+          editorRight.scrollToLine(line);
+        }
+      });
+
+      // ============================================================
+      // Global Keyboard Shortcuts
+      // ============================================================
+      document.addEventListener('keydown', (e) => {
+        const mod = e.metaKey || e.ctrlKey;
+
+        // Cmd+N: New File
+        if (mod && e.key === 'n') {
+          e.preventDefault();
+          EventBus.emit('toolbar:action', { action: 'new' });
+        }
+
+        // Cmd+O: Open File
+        if (mod && e.key === 'o') {
+          e.preventDefault();
+          EventBus.emit('toolbar:action', { action: 'open' });
+        }
+
+        // Cmd+S: Save
+        if (mod && e.key === 's') {
+          e.preventDefault();
+          EventBus.emit('toolbar:action', { action: 'save' });
+        }
+
+        // Cmd+F: Search
+        if (mod && e.key === 'f') {
+          e.preventDefault();
+          EventBus.emit('search:open', { replace: false });
+        }
+
+        // Cmd+H: Search & Replace
+        if (mod && e.key === 'h') {
+          e.preventDefault();
+          EventBus.emit('search:open', { replace: true });
+        }
+
+        // Cmd+\: Toggle Split
+        if (mod && e.key === '\\') {
+          e.preventDefault();
+          splitView.toggle();
+        }
+
+        // Cmd+= / Cmd+-: Font size
+        if (mod && (e.key === '=' || e.key === '+')) {
+          e.preventDefault();
+          EventBus.emit('toolbar:action', { action: 'font-increase' });
+        }
+        if (mod && e.key === '-') {
+          e.preventDefault();
+          EventBus.emit('toolbar:action', { action: 'font-decrease' });
+        }
+
+        // Cmd+0: Reset Zoom
+        if (mod && e.key === '0') {
+          e.preventDefault();
+          zoomController.resetZoom();
+        }
+
+        // F7: Next Diff
+        if (e.key === 'F7' && !e.shiftKey) {
+          e.preventDefault();
+          EventBus.emit('diff:navigate', { direction: 'next' });
+        }
+
+        // Shift+F7: Prev Diff
+        if (e.key === 'F7' && e.shiftKey) {
+          e.preventDefault();
+          EventBus.emit('diff:navigate', { direction: 'prev' });
+        }
+      });
+
+      // ============================================================
+      // Prevent browser zoom (Cmd+scroll), allow our custom zoom
+      // ============================================================
+      document.addEventListener('wheel', (e) => {
+        if (e.ctrlKey) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+
+      // ============================================================
+      // Initial State: Trigger diff if split mode was remembered
+      // ============================================================
+      if (splitView.isSplit()) {
+        EventBus.emit('diff:compute', {
+          textLeft: editorLeft.getText(),
+          textRight: editorRight.getText()
+        });
+      }
+
+      // ============================================================
+      // Auto-save setup (if configured)
+      // ============================================================
+      const autoSaveInterval = Settings.get('autoSaveInterval');
+      if (autoSaveInterval > 0) {
+        autoSave.start(autoSaveInterval);
+      }
+
+      // ============================================================
+      // Expose for testing
+      // ============================================================
+      window.App = {
+        editorLeft,
+        editorRight,
+        zoomController,
+        panController,
+        splitView,
+        fileManager,
+        searchManager,
+        themeManager,
+        toolbar,
+        statusBar,
+        toast,
+        autoSave
+      };
+
+      console.log('%cText Diff Editor - Prototype C', 'color: #8B7355; font-size: 14px; font-weight: 600;');
+      console.log('%cComponent-Based Architecture | Loaded', 'color: #6B6560; font-size: 11px;');
+    })();
+  </script>
+</body>
+</html>

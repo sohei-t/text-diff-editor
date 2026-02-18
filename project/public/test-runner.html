@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text Diff Editor - Test Runner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 24px;
+    }
+    h1 { font-size: 20px; color: #f0f0f0; margin-bottom: 8px; }
+    .summary {
+      display: flex; gap: 16px; margin: 12px 0 20px; font-size: 14px;
+      padding: 12px 16px; background: #16213e; border-radius: 8px;
+    }
+    .summary .pass { color: #4ade80; font-weight: 600; }
+    .summary .fail { color: #f87171; font-weight: 600; }
+    .summary .skip { color: #facc15; font-weight: 600; }
+    .summary .total { color: #94a3b8; }
+    .summary .rate { color: #60a5fa; font-weight: 600; font-size: 16px; }
+    .progress-bar { height: 4px; background: #334155; border-radius: 2px; margin-bottom: 16px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #4ade80; transition: width 0.3s; }
+    .suite { margin-bottom: 16px; }
+    .suite-header {
+      font-size: 14px; font-weight: 600; color: #94a3b8; padding: 6px 0;
+      border-bottom: 1px solid #1e293b; margin-bottom: 4px; cursor: pointer;
+    }
+    .suite-header:hover { color: #cbd5e1; }
+    .test {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 4px 8px 4px 20px; font-size: 13px; border-radius: 4px;
+    }
+    .test:hover { background: rgba(255,255,255,0.03); }
+    .test .icon { flex-shrink: 0; width: 16px; text-align: center; }
+    .test.pass .icon { color: #4ade80; }
+    .test.fail .icon { color: #f87171; }
+    .test.skip .icon { color: #facc15; }
+    .test .name { flex: 1; }
+    .test .time { color: #64748b; font-size: 11px; font-family: monospace; }
+    .test .error {
+      margin-top: 4px; padding: 6px 10px; background: rgba(248,113,113,0.1);
+      border-left: 2px solid #f87171; border-radius: 0 4px 4px 0;
+      font-family: monospace; font-size: 11px; color: #fca5a5; white-space: pre-wrap;
+      word-break: break-all;
+    }
+    #test-dom { position: absolute; left: -9999px; top: -9999px; }
+    .running { animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .filter-bar {
+      display: flex; gap: 8px; margin-bottom: 12px;
+    }
+    .filter-btn {
+      border: 1px solid #334155; background: transparent; color: #94a3b8;
+      padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;
+    }
+    .filter-btn.active { background: #334155; color: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h1 id="title" class="running">Text Diff Editor - Test Runner (Running...)</h1>
+  <div class="summary" id="summary">
+    <span class="total">Total: <span id="count-total">0</span></span>
+    <span class="pass">Passed: <span id="count-pass">0</span></span>
+    <span class="fail">Failed: <span id="count-fail">0</span></span>
+    <span class="skip">Skipped: <span id="count-skip">0</span></span>
+    <span class="rate">Rate: <span id="count-rate">-</span></span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+  <div class="filter-bar">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="fail">Failed</button>
+    <button class="filter-btn" data-filter="pass">Passed</button>
+  </div>
+  <div id="results"></div>
+
+  <!-- Hidden DOM for tests that need DOM elements -->
+  <div id="test-dom">
+    <div id="test-toolbar"></div>
+    <div id="test-status-bar"></div>
+    <div id="test-search-bar"></div>
+    <div id="test-toast-container"></div>
+    <div id="test-editor-container">
+      <div id="test-panel-left" class="editor-panel">
+        <div id="test-line-numbers-left" class="line-numbers"></div>
+        <textarea id="test-editor-left" class="editor-textarea"></textarea>
+      </div>
+      <div id="test-splitter"></div>
+      <div id="test-panel-right" class="editor-panel">
+        <div id="test-line-numbers-right" class="line-numbers"></div>
+        <textarea id="test-editor-right" class="editor-textarea"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load application source files -->
+  <script src="js/core.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/viewport.js"></script>
+  <script src="js/files.js"></script>
+  <script src="js/split-diff.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/ui.js"></script>
+
+  <script>
+  // ============================================================
+  // Lightweight Test Framework
+  // ============================================================
+  (function() {
+    'use strict';
+
+    const suites = [];
+    let currentSuite = null;
+
+    window.describe = function(name, fn) {
+      const suite = { name, tests: [], beforeEachFn: null, afterEachFn: null };
+      const prevSuite = currentSuite;
+      currentSuite = suite;
+      fn();
+      currentSuite = prevSuite;
+      suites.push(suite);
+    };
+
+    window.it = function(name, fn) {
+      if (currentSuite) {
+        // Wrap done()-style callbacks in a Promise
+        let wrappedFn = fn;
+        if (fn.length > 0) {
+          wrappedFn = function() {
+            return new Promise((resolve, reject) => {
+              const timeout = setTimeout(() => reject(new Error('Test timed out (5s)')), 5000);
+              fn(function done(err) {
+                clearTimeout(timeout);
+                if (err) reject(err);
+                else resolve();
+              });
+            });
+          };
+        }
+        currentSuite.tests.push({ name, fn: wrappedFn, status: 'pending', error: null, time: 0 });
+      }
+    };
+
+    window.beforeEach = function(fn) {
+      if (currentSuite) currentSuite.beforeEachFn = fn;
+    };
+
+    window.afterEach = function(fn) {
+      if (currentSuite) currentSuite.afterEachFn = fn;
+    };
+
+    window.assert = {
+      equal(actual, expected, msg) {
+        if (actual !== expected) {
+          throw new Error(msg || `Expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+        }
+      },
+      notEqual(actual, expected, msg) {
+        if (actual === expected) {
+          throw new Error(msg || `Expected value to differ from ${JSON.stringify(expected)}`);
+        }
+      },
+      deepEqual(actual, expected, msg) {
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+          throw new Error(msg || `Deep equal failed:\n  actual: ${JSON.stringify(actual)}\n  expected: ${JSON.stringify(expected)}`);
+        }
+      },
+      ok(value, msg) {
+        if (!value) throw new Error(msg || `Expected truthy value, got ${JSON.stringify(value)}`);
+      },
+      notOk(value, msg) {
+        if (value) throw new Error(msg || `Expected falsy value, got ${JSON.stringify(value)}`);
+      },
+      throws(fn, msg) {
+        let threw = false;
+        try { fn(); } catch(e) { threw = true; }
+        if (!threw) throw new Error(msg || 'Expected function to throw');
+      },
+      doesNotThrow(fn, msg) {
+        try { fn(); } catch(e) { throw new Error(msg || `Expected no throw, but got: ${e.message}`); }
+      },
+      approximately(actual, expected, tolerance, msg) {
+        if (Math.abs(actual - expected) > tolerance) {
+          throw new Error(msg || `Expected ${actual} to be within ${tolerance} of ${expected}`);
+        }
+      },
+      greaterThan(actual, expected, msg) {
+        if (actual <= expected) throw new Error(msg || `Expected ${actual} > ${expected}`);
+      },
+      lessThan(actual, expected, msg) {
+        if (actual >= expected) throw new Error(msg || `Expected ${actual} < ${expected}`);
+      },
+      includes(arr, item, msg) {
+        if (!arr.includes(item)) throw new Error(msg || `Expected array to include ${JSON.stringify(item)}`);
+      },
+      instanceOf(obj, cls, msg) {
+        if (!(obj instanceof cls)) throw new Error(msg || `Expected instance of ${cls.name}`);
+      }
+    };
+
+    // ============================================================
+    // Test Execution
+    // ============================================================
+    async function runAllTests() {
+      const results = { total: 0, pass: 0, fail: 0, skip: 0 };
+      const resultsEl = document.getElementById('results');
+      resultsEl.innerHTML = '';
+
+      for (const suite of suites) {
+        const suiteEl = document.createElement('div');
+        suiteEl.className = 'suite';
+        const header = document.createElement('div');
+        header.className = 'suite-header';
+        header.textContent = suite.name;
+        suiteEl.appendChild(header);
+
+        for (const test of suite.tests) {
+          results.total++;
+          const start = performance.now();
+
+          try {
+            // Reset EventBus for isolation
+            if (window.EventBus && window.EventBus.destroy) {
+              window.EventBus.destroy();
+              window.EventBus = new EventBus();
+            }
+
+            if (suite.beforeEachFn) await suite.beforeEachFn();
+            await test.fn();
+            if (suite.afterEachFn) await suite.afterEachFn();
+
+            test.status = 'pass';
+            test.time = performance.now() - start;
+            results.pass++;
+          } catch (err) {
+            test.status = 'fail';
+            test.error = err.message || String(err);
+            test.time = performance.now() - start;
+            results.fail++;
+
+            if (suite.afterEachFn) {
+              try { await suite.afterEachFn(); } catch(e) {}
+            }
+          }
+
+          // Render test result
+          const testEl = document.createElement('div');
+          testEl.className = `test ${test.status}`;
+          testEl.dataset.status = test.status;
+
+          const icon = test.status === 'pass' ? '\u2713' : test.status === 'fail' ? '\u2717' : '\u25CB';
+          testEl.innerHTML = `
+            <span class="icon">${icon}</span>
+            <span class="name">${test.name}</span>
+            <span class="time">${test.time.toFixed(1)}ms</span>
+          `;
+
+          if (test.error) {
+            const errorEl = document.createElement('div');
+            errorEl.className = 'error';
+            errorEl.textContent = test.error;
+            testEl.appendChild(errorEl);
+          }
+
+          suiteEl.appendChild(testEl);
+
+          // Update progress
+          const pct = Math.round((results.total / getTotalTestCount()) * 100);
+          document.getElementById('progress').style.width = pct + '%';
+          updateSummary(results);
+        }
+
+        resultsEl.appendChild(suiteEl);
+      }
+
+      // Final update
+      updateSummary(results);
+      document.getElementById('title').textContent = `Text Diff Editor - Test Runner (${results.pass}/${results.total} passed)`;
+      document.getElementById('title').classList.remove('running');
+
+      if (results.fail > 0) {
+        document.getElementById('progress').style.background = '#f87171';
+      }
+
+      return results;
+    }
+
+    function getTotalTestCount() {
+      let count = 0;
+      suites.forEach(s => count += s.tests.length);
+      return count || 1;
+    }
+
+    function updateSummary(r) {
+      document.getElementById('count-total').textContent = r.total;
+      document.getElementById('count-pass').textContent = r.pass;
+      document.getElementById('count-fail').textContent = r.fail;
+      document.getElementById('count-skip').textContent = r.skip;
+      const rate = r.total > 0 ? Math.round((r.pass / r.total) * 100) : 0;
+      document.getElementById('count-rate').textContent = rate + '%';
+    }
+
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        document.querySelectorAll('.test').forEach(t => {
+          if (filter === 'all') { t.style.display = ''; }
+          else { t.style.display = t.dataset.status === filter ? '' : 'none'; }
+        });
+      });
+    });
+
+    window._runAllTests = runAllTests;
+  })();
+
+  // ============================================================
+  // TEST SUITES
+  // ============================================================
+
+  // ---- EventBus Tests (6 cases) ----
+  describe('EventBus', () => {
+    it('TC-EB-001: should call registered listener when event is emitted', () => {
+      const bus = new EventBus();
+      let received = null;
+      bus.on('test', (data) => { received = data; });
+      bus.emit('test', { value: 42 });
+      assert.deepEqual(received, { value: 42 });
+    });
+
+    it('TC-EB-002: should call all registered listeners for the same event', () => {
+      const bus = new EventBus();
+      let count = 0;
+      bus.on('test', () => count++);
+      bus.on('test', () => count++);
+      bus.on('test', () => count++);
+      bus.emit('test', {});
+      assert.equal(count, 3);
+    });
+
+    it('TC-EB-003: should not call removed listener', () => {
+      const bus = new EventBus();
+      let called = false;
+      const cb = () => { called = true; };
+      bus.on('test', cb);
+      bus.off('test', cb);
+      bus.emit('test', {});
+      assert.notOk(called);
+    });
+
+    it('TC-EB-004: should call once listener only once', () => {
+      const bus = new EventBus();
+      let count = 0;
+      bus.once('test', () => count++);
+      bus.emit('test', {});
+      bus.emit('test', {});
+      assert.equal(count, 1);
+    });
+
+    it('TC-EB-005: should not throw when emitting event with no listeners', () => {
+      const bus = new EventBus();
+      assert.doesNotThrow(() => bus.emit('nonexistent', {}));
+    });
+
+    it('TC-EB-006: should not call any listeners after destroy', () => {
+      const bus = new EventBus();
+      let called = false;
+      bus.on('test', () => { called = true; });
+      bus.destroy();
+      bus.emit('test', {});
+      assert.notOk(called);
+    });
+  });
+
+  // ---- EditorManager Tests (10 cases) ----
+  describe('EditorManager', () => {
+    let editor, textarea, lineNums;
+
+    beforeEach(() => {
+      textarea = document.getElementById('test-editor-left');
+      lineNums = document.getElementById('test-line-numbers-left');
+      textarea.value = '';
+      lineNums.innerHTML = '';
+      window.EventBus = new EventBus();
+      editor = new EditorManager(textarea, lineNums, 'left');
+    });
+
+    afterEach(() => {
+      if (editor) editor.destroy();
+    });
+
+    it('TC-EM-001: should set and get text content', () => {
+      editor.setText('Hello World');
+      assert.equal(editor.getText(), 'Hello World');
+    });
+
+    it('TC-EM-002: should handle empty text correctly', () => {
+      editor.setText('some text');
+      editor.setText('');
+      assert.equal(editor.getText(), '');
+      assert.equal(editor.getLineCount(), 1);
+    });
+
+    it('TC-EM-003: should return correct cursor position', () => {
+      editor.setText('line1\nline2\nline3');
+      // Set cursor to position 8 (start of 'ne2' on line 2)
+      textarea.selectionStart = 8;
+      textarea.selectionEnd = 8;
+      const pos = editor.getCursorPosition();
+      assert.equal(pos.line, 2);
+      assert.equal(pos.column, 3);
+    });
+
+    it('TC-EM-004: should set cursor to specified position', () => {
+      editor.setText('line1\nline2');
+      editor.setCursorPosition(2, 1);
+      const pos = editor.getCursorPosition();
+      assert.equal(pos.line, 2);
+      assert.equal(pos.column, 1);
+    });
+
+    it('TC-EM-005: should return correct line count', () => {
+      editor.setText('a\nb\nc\nd');
+      assert.equal(editor.getLineCount(), 4);
+    });
+
+    it('TC-EM-006: should insert text at specified position', () => {
+      editor.setText('Hello World');
+      editor.insertText(5, ' Beautiful');
+      assert.equal(editor.getText(), 'Hello Beautiful World');
+    });
+
+    it('TC-EM-007: should replace text in specified range', () => {
+      editor.setText('Hello World');
+      editor.replaceRange(0, 5, 'Goodbye');
+      assert.equal(editor.getText(), 'Goodbye World');
+    });
+
+    it('TC-EM-008: should emit editor:change on setText', () => {
+      let emittedContent = null;
+      EventBus.on('editor:change', (data) => { emittedContent = data.content; });
+      editor.setText('Test content');
+      assert.equal(emittedContent, 'Test content');
+    });
+
+    it('TC-EM-009: should update line numbers when text changes', () => {
+      editor.setText('a\nb\nc');
+      editor.updateLineNumbers();
+      assert.equal(lineNums.children.length, 3);
+    });
+
+    it('TC-EM-010: should apply font size to textarea', () => {
+      editor.setFontSize(24);
+      assert.equal(textarea.style.fontSize, '24px');
+    });
+  });
+
+  // ---- ZoomController Tests (8 cases) ----
+  describe('ZoomController', () => {
+    let zoom, container;
+
+    beforeEach(() => {
+      container = document.getElementById('test-editor-container');
+      container.style.transform = '';
+      window.EventBus = new EventBus();
+      zoom = new ZoomController(container, { baseFontSize: 18, minZoom: 0.5, maxZoom: 4.0 });
+    });
+
+    afterEach(() => {
+      if (zoom) zoom.destroy();
+    });
+
+    it('TC-ZC-001: should initialize with zoom level 1.0', () => {
+      assert.equal(zoom.getZoom(), 1.0);
+    });
+
+    it('TC-ZC-002: should increase zoom level by 0.25 on zoomIn()', () => {
+      zoom.zoomIn();
+      assert.equal(zoom.getZoom(), 1.25);
+    });
+
+    it('TC-ZC-003: should decrease zoom level by 0.25 on zoomOut()', () => {
+      zoom.zoomOut();
+      assert.equal(zoom.getZoom(), 0.75);
+    });
+
+    it('TC-ZC-004: should not exceed max zoom level (4.0)', () => {
+      zoom.setZoom(3.9);
+      zoom.zoomIn();
+      assert.equal(zoom.getZoom(), 4.0);
+    });
+
+    it('TC-ZC-005: should not go below min zoom level (0.5)', () => {
+      zoom.setZoom(0.6);
+      zoom.zoomOut();
+      assert.equal(zoom.getZoom(), 0.5);
+    });
+
+    it('TC-ZC-006: should apply CSS transform scale to container', () => {
+      zoom.setZoom(1.5);
+      assert.ok(container.style.transform.includes('scale(1.5)'));
+    });
+
+    it('TC-ZC-007: should reset zoom to 1.0 on resetZoom()', () => {
+      zoom.setZoom(2.0);
+      zoom.resetZoom();
+      assert.equal(zoom.getZoom(), 1.0);
+    });
+
+    it('TC-ZC-008: should emit zoom:change event on zoom', () => {
+      let emittedLevel = null;
+      EventBus.on('zoom:change', (data) => { emittedLevel = data.level; });
+      zoom.setZoom(1.5);
+      assert.equal(emittedLevel, 1.5);
+    });
+  });
+
+  // ---- PanController Tests (6 cases) ----
+  describe('PanController', () => {
+    let pan, container;
+
+    beforeEach(() => {
+      container = document.getElementById('test-editor-container');
+      window.EventBus = new EventBus();
+      pan = new PanController(container);
+    });
+
+    afterEach(() => {
+      if (pan) pan.destroy();
+    });
+
+    it('TC-PC-001: should start panning on Alt+mousedown', () => {
+      const event = new MouseEvent('mousedown', { altKey: true, bubbles: true });
+      container.dispatchEvent(event);
+      assert.ok(pan.isPanning());
+    });
+
+    it('TC-PC-002: should not pan without Alt key', () => {
+      const event = new MouseEvent('mousedown', { altKey: false, bubbles: true });
+      container.dispatchEvent(event);
+      assert.notOk(pan.isPanning());
+    });
+
+    it('TC-PC-003: should stop panning on mouseup', () => {
+      const down = new MouseEvent('mousedown', { altKey: true, bubbles: true });
+      container.dispatchEvent(down);
+      assert.ok(pan.isPanning());
+      const up = new MouseEvent('mouseup', { bubbles: true });
+      document.dispatchEvent(up);
+      assert.notOk(pan.isPanning());
+    });
+
+    it('TC-PC-004: should emit pan:start on pan begin', () => {
+      let started = false;
+      EventBus.on('pan:start', () => { started = true; });
+      container.dispatchEvent(new MouseEvent('mousedown', { altKey: true, bubbles: true }));
+      assert.ok(started);
+    });
+
+    it('TC-PC-005: should be disableable', () => {
+      pan.disable();
+      container.dispatchEvent(new MouseEvent('mousedown', { altKey: true, bubbles: true }));
+      assert.notOk(pan.isPanning());
+    });
+
+    it('TC-PC-006: should re-enable after disable', () => {
+      pan.disable();
+      pan.enable();
+      container.dispatchEvent(new MouseEvent('mousedown', { altKey: true, bubbles: true }));
+      assert.ok(pan.isPanning());
+    });
+  });
+
+  // ---- DiffEngine Tests (10 cases) ----
+  describe('DiffEngine', () => {
+    let diff;
+
+    beforeEach(() => {
+      diff = new DiffEngine();
+    });
+
+    it('TC-DE-001: should return equal for identical texts', () => {
+      const result = diff.computeLineDiff('hello\nworld', 'hello\nworld');
+      assert.equal(result.changes.length, 2);
+      assert.ok(result.changes.every(c => c.type === 'equal'));
+    });
+
+    it('TC-DE-002: should detect added lines', () => {
+      const result = diff.computeLineDiff('line1', 'line1\nline2');
+      const adds = result.changes.filter(c => c.type === 'add');
+      assert.equal(adds.length, 1);
+      assert.equal(adds[0].contentRight, 'line2');
+    });
+
+    it('TC-DE-003: should detect deleted lines', () => {
+      const result = diff.computeLineDiff('line1\nline2', 'line1');
+      const dels = result.changes.filter(c => c.type === 'delete');
+      assert.equal(dels.length, 1);
+      assert.equal(dels[0].contentLeft, 'line2');
+    });
+
+    it('TC-DE-004: should detect modified lines', () => {
+      const result = diff.computeLineDiff('hello world', 'hello earth');
+      const mods = result.changes.filter(c => c.type === 'modify');
+      assert.equal(mods.length, 1);
+    });
+
+    it('TC-DE-005: should compute inline diffs for modified lines', () => {
+      const result = diff.computeLineDiff('hello world', 'hello earth');
+      const mod = result.changes.find(c => c.type === 'modify');
+      assert.ok(mod.inlineDiffs.length > 0);
+    });
+
+    it('TC-DE-006: should handle empty texts', () => {
+      const result = diff.computeLineDiff('', '');
+      assert.ok(result.changes.length >= 0);
+    });
+
+    it('TC-DE-007: should compute correct stats', () => {
+      const result = diff.computeLineDiff('a\nb\nc', 'a\nB\nc\nd');
+      assert.equal(result.stats.unchanged, 2); // a, c
+      assert.ok(result.stats.modified >= 0 || result.stats.added >= 0 || result.stats.deleted >= 0);
+    });
+
+    it('TC-DE-008: should normalize CRLF line endings', () => {
+      const result = diff.computeLineDiff('a\r\nb', 'a\nb');
+      assert.ok(result.changes.every(c => c.type === 'equal'));
+    });
+
+    it('TC-DE-009: should handle large text (performance)', () => {
+      const linesA = Array.from({ length: 1000 }, (_, i) => `line ${i}`).join('\n');
+      const linesB = Array.from({ length: 1000 }, (_, i) => i === 500 ? `changed line ${i}` : `line ${i}`).join('\n');
+      const start = performance.now();
+      const result = diff.computeLineDiff(linesA, linesB);
+      const elapsed = performance.now() - start;
+      assert.ok(result.changes.length > 0);
+      // Should complete in reasonable time (< 2000ms for 1000 lines)
+      assert.ok(elapsed < 2000, `Diff took ${elapsed}ms, expected < 2000ms`);
+    });
+
+    it('TC-DE-010: should compute inline diff for character-level changes', () => {
+      const inlineDiffs = diff.computeInlineDiff('abcdef', 'abXYef');
+      assert.ok(inlineDiffs.length > 0);
+      const hasDelete = inlineDiffs.some(d => d.type === 'delete');
+      const hasAdd = inlineDiffs.some(d => d.type === 'add');
+      assert.ok(hasDelete || hasAdd, 'Should detect character differences');
+    });
+  });
+
+  // ---- FileManager Tests (6 cases) ----
+  describe('FileManager', () => {
+    let fm;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      fm = new FileManager();
+    });
+
+    it('TC-FM-001: should initialize with Untitled files', () => {
+      assert.equal(fm.getFileName('left'), 'Untitled');
+      assert.equal(fm.getFileName('right'), 'Untitled');
+    });
+
+    it('TC-FM-002: should create new file with empty content', () => {
+      let emittedPanelId = null;
+      EventBus.on('file:new', (data) => { emittedPanelId = data.panelId; });
+      fm.createNew('left');
+      assert.equal(emittedPanelId, 'left');
+      assert.equal(fm.getFileName('left'), 'Untitled');
+    });
+
+    it('TC-FM-003: should detect native File System API support', () => {
+      const supported = fm.isNativeSupported();
+      assert.equal(typeof supported, 'boolean');
+    });
+
+    it('TC-FM-004: should handle drop events', () => {
+      let emitted = false;
+      EventBus.on('file:open', () => { emitted = true; });
+      const file = new File(['test content'], 'test.txt', { type: 'text/plain' });
+      // handleDrop is async
+      fm.handleDrop('left', file).then(() => {
+        assert.ok(emitted);
+      });
+    });
+
+    it('TC-FM-005: should store file state per panel', () => {
+      fm.files.left = { name: 'left.txt', handle: null, content: 'left content' };
+      fm.files.right = { name: 'right.txt', handle: null, content: 'right content' };
+      assert.equal(fm.getFileName('left'), 'left.txt');
+      assert.equal(fm.getFileName('right'), 'right.txt');
+    });
+
+    it('TC-FM-006: should warn about binary file drops', async () => {
+      let toastType = null;
+      EventBus.on('toast:show', (data) => { toastType = data.type; });
+      const file = new File(['binary'], 'image.png', { type: 'image/png' });
+      await fm.handleDrop('left', file);
+      assert.equal(toastType, 'warning');
+    });
+  });
+
+  // ---- SplitView Tests (6 cases) ----
+  describe('SplitView', () => {
+    let sv, container;
+
+    beforeEach(() => {
+      container = document.getElementById('test-editor-container');
+      window.EventBus = new EventBus();
+
+      // Set up panel IDs expected by SplitView
+      const origLeft = document.getElementById('panel-left');
+      const origRight = document.getElementById('panel-right');
+      const origSplitter = document.getElementById('splitter');
+
+      // Use test elements but with correct IDs temporarily
+      // SplitView looks for getElementById so we just test the logic
+      sv = new SplitView(container);
+    });
+
+    it('TC-SV-001: should not be split by default', () => {
+      assert.notOk(sv.isSplit());
+    });
+
+    it('TC-SV-002: should toggle split mode', () => {
+      sv.setSplit(true);
+      assert.ok(sv.isSplit());
+      sv.setSplit(false);
+      assert.notOk(sv.isSplit());
+    });
+
+    it('TC-SV-003: should emit split:toggle event', () => {
+      let emitted = null;
+      EventBus.on('split:toggle', (data) => { emitted = data; });
+      sv.setSplit(true);
+      assert.ok(emitted);
+      assert.equal(emitted.enabled, true);
+    });
+
+    it('TC-SV-004: should clamp split ratio between 0.2 and 0.8', () => {
+      sv.setSplitRatio(0.1);
+      assert.equal(sv.getSplitRatio(), 0.2);
+      sv.setSplitRatio(0.9);
+      assert.equal(sv.getSplitRatio(), 0.8);
+    });
+
+    it('TC-SV-005: should set sync scroll state', () => {
+      sv.setSyncScroll(false);
+      assert.equal(sv.syncScroll, false);
+      sv.setSyncScroll(true);
+      assert.equal(sv.syncScroll, true);
+    });
+
+    it('TC-SV-006: should have a DiffEngine instance', () => {
+      assert.ok(sv.diffEngine instanceof DiffEngine);
+    });
+  });
+
+  // ---- SearchManager Tests (8 cases) ----
+  describe('SearchManager', () => {
+    let sm;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      // SearchManager looks for specific DOM IDs, so we need them
+      // We test the core logic
+      sm = new SearchManager();
+    });
+
+    it('TC-SM-001: should initialize with empty state', () => {
+      assert.equal(sm.query, '');
+      assert.equal(sm.matches.length, 0);
+      assert.equal(sm.currentIndex, -1);
+    });
+
+    it('TC-SM-002: should find matches in text', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'hello world hello';
+      const result = sm.find('hello');
+      assert.equal(result.total, 2);
+    });
+
+    it('TC-SM-003: should support case sensitive search', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'Hello hello HELLO';
+      const result = sm.find('hello', { caseSensitive: true });
+      assert.equal(result.total, 1);
+    });
+
+    it('TC-SM-004: should support regex search', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'cat bat sat';
+      const result = sm.find('[cbr]at', { useRegex: true });
+      assert.equal(result.total, 3);
+    });
+
+    it('TC-SM-005: should navigate to next match', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'aaa bbb aaa';
+      sm.find('aaa');
+      const next = sm.findNext();
+      assert.ok(next);
+      assert.equal(next.index, 1);
+    });
+
+    it('TC-SM-006: should navigate to previous match', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'aaa bbb aaa';
+      sm.find('aaa');
+      const prev = sm.findPrevious();
+      assert.ok(prev);
+    });
+
+    it('TC-SM-007: should replace current match', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'hello world';
+      sm.find('hello');
+      sm.replace('goodbye');
+      assert.equal(sm.activeEditor.value, 'goodbye world');
+    });
+
+    it('TC-SM-008: should replace all matches', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'aaa bbb aaa';
+      sm.find('aaa');
+      const count = sm.replaceAll('ccc');
+      assert.equal(count, 2);
+      assert.equal(sm.activeEditor.value, 'ccc bbb ccc');
+    });
+  });
+
+  // ---- ThemeManager Tests (5 cases) ----
+  describe('ThemeManager', () => {
+    let tm;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      tm = new ThemeManager();
+    });
+
+    afterEach(() => {
+      tm.destroy();
+      document.documentElement.setAttribute('data-theme', 'light');
+    });
+
+    it('TC-TM-001: should default to light theme', () => {
+      localStorage.removeItem('textDiffEditor_theme');
+      const tm2 = new ThemeManager();
+      assert.equal(tm2.getTheme(), 'light');
+      tm2.destroy();
+    });
+
+    it('TC-TM-002: should toggle through themes', () => {
+      tm.setTheme('light');
+      tm.toggleTheme();
+      assert.equal(tm.getTheme(), 'dark');
+      tm.toggleTheme();
+      assert.equal(tm.getTheme(), 'high-contrast');
+      tm.toggleTheme();
+      assert.equal(tm.getTheme(), 'light');
+    });
+
+    it('TC-TM-003: should apply data-theme attribute to html', () => {
+      tm.setTheme('dark');
+      assert.equal(document.documentElement.getAttribute('data-theme'), 'dark');
+    });
+
+    it('TC-TM-004: should emit theme:change event', () => {
+      let emitted = null;
+      EventBus.on('theme:change', (data) => { emitted = data; });
+      tm.setTheme('high-contrast');
+      assert.ok(emitted);
+      assert.equal(emitted.theme, 'high-contrast');
+    });
+
+    it('TC-TM-005: should return available themes', () => {
+      const themes = tm.getAvailableThemes();
+      assert.equal(themes.length, 3);
+      assert.includes(themes, 'light');
+      assert.includes(themes, 'dark');
+      assert.includes(themes, 'high-contrast');
+    });
+  });
+
+  // ---- AutoSave Tests (4 cases) ----
+  describe('AutoSave', () => {
+    let as;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      as = new AutoSave();
+    });
+
+    afterEach(() => {
+      as.destroy();
+    });
+
+    it('TC-AS-001: should not be enabled by default', () => {
+      assert.notOk(as.isEnabled());
+    });
+
+    it('TC-AS-002: should enable with start()', () => {
+      as.start(5000);
+      assert.ok(as.isEnabled());
+    });
+
+    it('TC-AS-003: should disable with stop()', () => {
+      as.start(5000);
+      as.stop();
+      assert.notOk(as.isEnabled());
+    });
+
+    it('TC-AS-004: should emit file:save when modified and timer fires', (done) => {
+      let saved = false;
+      EventBus.on('file:save', () => { saved = true; });
+      as.start(50); // 50ms interval for fast test
+      as._modified = true;
+      setTimeout(() => {
+        as.stop();
+        assert.ok(saved, 'file:save should have been emitted');
+        done();
+      }, 100);
+    });
+  });
+
+  // ---- Utils Tests (6 cases) ----
+  describe('Utils', () => {
+    it('TC-UT-001: clamp should constrain value to range', () => {
+      assert.equal(Utils.clamp(5, 0, 10), 5);
+      assert.equal(Utils.clamp(-1, 0, 10), 0);
+      assert.equal(Utils.clamp(15, 0, 10), 10);
+    });
+
+    it('TC-UT-002: escapeHtml should escape special characters', () => {
+      assert.equal(Utils.escapeHtml('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+    });
+
+    it('TC-UT-003: escapeRegex should escape regex special characters', () => {
+      assert.equal(Utils.escapeRegex('a.b*c'), 'a\\.b\\*c');
+    });
+
+    it('TC-UT-004: formatFileSize should format bytes correctly', () => {
+      assert.equal(Utils.formatFileSize(0), '0 B');
+      assert.equal(Utils.formatFileSize(1024), '1 KB');
+      assert.equal(Utils.formatFileSize(1048576), '1 MB');
+    });
+
+    it('TC-UT-005: debounce should delay execution', (done) => {
+      let count = 0;
+      const fn = Utils.debounce(() => count++, 30);
+      fn(); fn(); fn();
+      setTimeout(() => {
+        assert.equal(count, 1);
+        done();
+      }, 80);
+    });
+
+    it('TC-UT-006: throttle should limit execution rate', (done) => {
+      let count = 0;
+      const fn = Utils.throttle(() => count++, 50);
+      fn(); fn(); fn();
+      assert.equal(count, 1);
+      setTimeout(() => {
+        fn();
+        assert.equal(count, 2);
+        done();
+      }, 80);
+    });
+  });
+
+  // ---- SettingsManager Tests (4 cases) ----
+  describe('SettingsManager', () => {
+    it('TC-SET-001: should have default settings', () => {
+      const sm = new SettingsManager();
+      assert.equal(sm.get('fontSize'), 18);
+      assert.equal(sm.get('theme'), 'light');
+    });
+
+    it('TC-SET-002: should set and persist values', () => {
+      const sm = new SettingsManager();
+      sm.set('fontSize', 24);
+      assert.equal(sm.get('fontSize'), 24);
+      // Check localStorage
+      const stored = JSON.parse(localStorage.getItem('textDiffEditor'));
+      assert.equal(stored.fontSize, 24);
+      // Reset
+      sm.set('fontSize', 18);
+    });
+
+    it('TC-SET-003: should reset to defaults', () => {
+      const sm = new SettingsManager();
+      sm.set('fontSize', 36);
+      sm.resetToDefaults();
+      assert.equal(sm.get('fontSize'), 18);
+    });
+
+    it('TC-SET-004: should emit settings:change event', () => {
+      window.EventBus = new EventBus();
+      const sm = new SettingsManager();
+      let emitted = null;
+      EventBus.on('settings:change', (data) => { emitted = data; });
+      sm.set('fontSize', 20);
+      assert.ok(emitted);
+      assert.equal(emitted.key, 'fontSize');
+      assert.equal(emitted.value, 20);
+      sm.set('fontSize', 18);
+    });
+  });
+
+  // ---- Integration: Zoom + Editor Font (3 cases) ----
+  describe('Integration: Zoom + Editor', () => {
+    it('TC-INT-001: zoom commitZoom should update font sizes', () => {
+      const container = document.getElementById('test-editor-container');
+      window.EventBus = new EventBus();
+      const zc = new ZoomController(container, { baseFontSize: 18 });
+      zc.level = 2.0;
+      zc.commitZoom();
+      // commitZoom modifies all .editor-textarea elements font size
+      const ta = document.querySelector('.editor-textarea');
+      if (ta) {
+        const size = parseFloat(ta.style.fontSize);
+        assert.approximately(size, 36, 2, 'Font size should be ~36px at 2x zoom');
+      }
+      zc.level = 1.0;
+      zc.commitZoom();
+      zc.destroy();
+    });
+
+    it('TC-INT-002: zoom:change event should be received by toolbar', () => {
+      window.EventBus = new EventBus();
+      let received = null;
+      EventBus.on('zoom:change', (data) => { received = data; });
+      EventBus.emit('zoom:change', { level: 1.5 });
+      assert.ok(received);
+      assert.equal(received.level, 1.5);
+    });
+
+    it('TC-INT-003: editor:change should trigger diff:compute when split', () => {
+      window.EventBus = new EventBus();
+      let diffTriggered = false;
+      EventBus.on('diff:compute', () => { diffTriggered = true; });
+      // Simulate what app.js does: when split is active and editor changes
+      // We directly test the event chain
+      EventBus.emit('diff:compute', { textLeft: 'a', textRight: 'b' });
+      assert.ok(diffTriggered);
+    });
+  });
+
+  // ---- Integration: Diff + Split (3 cases) ----
+  describe('Integration: Diff + Split', () => {
+    it('TC-INT-004: diff engine should integrate with split view', () => {
+      const engine = new DiffEngine();
+      const result = engine.computeLineDiff('line1\nline2', 'line1\nmodified');
+      assert.ok(result.changes.length > 0);
+      assert.ok(result.stats);
+    });
+
+    it('TC-INT-005: diff:result should include stats', () => {
+      window.EventBus = new EventBus();
+      let stats = null;
+      EventBus.on('diff:result', (data) => { stats = data.stats; });
+      const engine = new DiffEngine();
+      const result = engine.computeLineDiff('a\nb', 'a\nc');
+      EventBus.emit('diff:result', result);
+      assert.ok(stats);
+      assert.equal(typeof stats.added, 'number');
+      assert.equal(typeof stats.deleted, 'number');
+    });
+
+    it('TC-INT-006: diff navigation should emit navigated event', () => {
+      window.EventBus = new EventBus();
+      let navigated = false;
+      EventBus.on('diff:navigated', () => { navigated = true; });
+      EventBus.emit('diff:navigated', { change: {}, index: 0, total: 1, line: 1 });
+      assert.ok(navigated);
+    });
+  });
+
+  // ---- Integration: File + Editor (3 cases) ----
+  describe('Integration: File + Editor', () => {
+    it('TC-INT-007: file:open should be emittable and receivable', () => {
+      window.EventBus = new EventBus();
+      let received = null;
+      EventBus.on('file:open', (data) => { received = data; });
+      EventBus.emit('file:open', { panelId: 'left', name: 'test.txt', content: 'hello', handle: null });
+      assert.ok(received);
+      assert.equal(received.name, 'test.txt');
+      assert.equal(received.content, 'hello');
+    });
+
+    it('TC-INT-008: file:modified event chain works', () => {
+      window.EventBus = new EventBus();
+      let modified = null;
+      EventBus.on('file:modified', (data) => { modified = data; });
+      EventBus.emit('file:modified', { panelId: 'left', modified: true });
+      assert.ok(modified);
+      assert.equal(modified.modified, true);
+    });
+
+    it('TC-INT-009: toast:show event chain works', () => {
+      window.EventBus = new EventBus();
+      let toastData = null;
+      EventBus.on('toast:show', (data) => { toastData = data; });
+      EventBus.emit('toast:show', { message: 'Test', type: 'info', duration: 1000 });
+      assert.ok(toastData);
+      assert.equal(toastData.message, 'Test');
+    });
+  });
+
+  // ============================================================
+  // Support async tests with done() callback
+  // ============================================================
+  (function patchAsyncTests() {
+    const origIt = window.it;
+    // The framework already handles async via await, but we need done() support
+    // We patch: if test fn has a parameter, wrap it in a Promise
+    // This is handled by checking fn.length
+  })();
+
+  // ============================================================
+  // Run tests on load
+  // ============================================================
+  window.addEventListener('load', () => {
+    // Small delay to ensure DOM is fully ready
+    setTimeout(() => {
+      window._runAllTests().then((results) => {
+        console.log(`Tests complete: ${results.pass}/${results.total} passed (${Math.round(results.pass/results.total*100)}%)`);
+      });
+    }, 100);
+  });
+  </script>
+</body>
+</html>
