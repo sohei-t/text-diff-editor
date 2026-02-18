@@ -313,27 +313,31 @@ class SplitView {
   _setupSplitter() {
     if (!this.splitter) return;
 
-    this.splitter.addEventListener('mousedown', (e) => {
+    this._onSplitterMouseDown = (e) => {
       e.preventDefault();
       this.dragging = true;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
-    });
+    };
 
-    document.addEventListener('mousemove', (e) => {
+    this._onSplitterMouseMove = (e) => {
       if (!this.dragging) return;
       const containerRect = this.container.getBoundingClientRect();
       const newRatio = (e.clientX - containerRect.left) / containerRect.width;
       this.setSplitRatio(newRatio);
-    });
+    };
 
-    document.addEventListener('mouseup', () => {
+    this._onSplitterMouseUp = () => {
       if (this.dragging) {
         this.dragging = false;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
       }
-    });
+    };
+
+    this.splitter.addEventListener('mousedown', this._onSplitterMouseDown);
+    document.addEventListener('mousemove', this._onSplitterMouseMove);
+    document.addEventListener('mouseup', this._onSplitterMouseUp);
   }
 
   _setupDiffListener() {
@@ -445,5 +449,15 @@ class SplitView {
     });
   }
 
-  destroy() {}
+  destroy() {
+    if (this.splitter && this._onSplitterMouseDown) {
+      this.splitter.removeEventListener('mousedown', this._onSplitterMouseDown);
+    }
+    if (this._onSplitterMouseMove) {
+      document.removeEventListener('mousemove', this._onSplitterMouseMove);
+    }
+    if (this._onSplitterMouseUp) {
+      document.removeEventListener('mouseup', this._onSplitterMouseUp);
+    }
+  }
 }

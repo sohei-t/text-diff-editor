@@ -679,14 +679,12 @@
       assert.equal(typeof supported, 'boolean');
     });
 
-    it('TC-FM-004: should handle drop events', () => {
+    it('TC-FM-004: should handle drop events', async () => {
       let emitted = false;
       EventBus.on('file:open', () => { emitted = true; });
       const file = new File(['test content'], 'test.txt', { type: 'text/plain' });
-      // handleDrop is async
-      fm.handleDrop('left', file).then(() => {
-        assert.ok(emitted);
-      });
+      await fm.handleDrop('left', file);
+      assert.ok(emitted);
     });
 
     it('TC-FM-005: should store file state per panel', () => {
@@ -795,7 +793,7 @@
     it('TC-SM-004: should support regex search', () => {
       sm.activeEditor = document.getElementById('test-editor-left');
       sm.activeEditor.value = 'cat bat sat';
-      const result = sm.find('[cbr]at', { useRegex: true });
+      const result = sm.find('[cbs]at', { useRegex: true });
       assert.equal(result.total, 3);
     });
 
@@ -1109,6 +1107,338 @@
       EventBus.emit('toast:show', { message: 'Test', type: 'info', duration: 1000 });
       assert.ok(toastData);
       assert.equal(toastData.message, 'Test');
+    });
+  });
+
+  // ============================================================
+  // ADDITIONAL CRITICAL PATH TESTS
+  // ============================================================
+
+  // ---- ZoomController: Wheel event test ----
+  describe('ZoomController (Critical Path)', () => {
+    it('TC-ZC-009: should respond to wheel event with ctrlKey', () => {
+      const container = document.getElementById('test-editor-container');
+      container.style.transform = '';
+      window.EventBus = new EventBus();
+      const zc = new ZoomController(container, { baseFontSize: 18, minZoom: 0.5, maxZoom: 4.0 });
+      const initialZoom = zc.getZoom();
+
+      // Simulate pinch zoom (ctrlKey + wheel)
+      const wheelEvent = new WheelEvent('wheel', {
+        ctrlKey: true,
+        deltaY: -50,
+        bubbles: true,
+        cancelable: true
+      });
+      container.dispatchEvent(wheelEvent);
+
+      assert.ok(zc.getZoom() > initialZoom, 'Zoom should increase on ctrl+wheel up');
+      zc.destroy();
+    });
+
+    it('TC-ZC-010: should NOT zoom on wheel without ctrlKey', () => {
+      const container = document.getElementById('test-editor-container');
+      container.style.transform = '';
+      window.EventBus = new EventBus();
+      const zc = new ZoomController(container, { baseFontSize: 18 });
+      const initialZoom = zc.getZoom();
+
+      const wheelEvent = new WheelEvent('wheel', {
+        ctrlKey: false,
+        deltaY: -50,
+        bubbles: true,
+        cancelable: true
+      });
+      container.dispatchEvent(wheelEvent);
+
+      assert.equal(zc.getZoom(), initialZoom, 'Zoom should not change without ctrlKey');
+      zc.destroy();
+    });
+  });
+
+  // ---- SearchManager: Edge cases ----
+  describe('SearchManager (Edge Cases)', () => {
+    let sm;
+
+    beforeEach(() => {
+      window.EventBus = new EventBus();
+      sm = new SearchManager();
+    });
+
+    it('TC-SM-009: should handle invalid regex gracefully', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'test content here';
+      const result = sm.find('[invalid', { useRegex: true });
+      assert.equal(result.total, 0);
+    });
+
+    it('TC-SM-010: should handle empty query', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'test content';
+      const result = sm.find('');
+      assert.equal(result.total, 0);
+    });
+
+    it('TC-SM-011: should wrap around when navigating past last match', () => {
+      sm.activeEditor = document.getElementById('test-editor-left');
+      sm.activeEditor.value = 'aaa bbb aaa';
+      sm.find('aaa');
+      sm.findNext(); // index 1
+      const wrapped = sm.findNext(); // should wrap to index 0
+      assert.equal(wrapped.index, 0);
+    });
+  });
+
+  // ---- ThemeManager: Persistence ----
+  describe('ThemeManager (Persistence)', () => {
+    it('TC-TM-006: should persist theme to localStorage', () => {
+      window.EventBus = new EventBus();
+      const tm = new ThemeManager();
+      tm.setTheme('high-contrast');
+      const stored = localStorage.getItem('textDiffEditor_theme');
+      assert.equal(stored, 'high-contrast');
+      tm.setTheme('light');
+      tm.destroy();
+    });
+
+    it('TC-TM-007: should restore theme from localStorage', () => {
+      window.EventBus = new EventBus();
+      localStorage.setItem('textDiffEditor_theme', 'dark');
+      const tm = new ThemeManager();
+      assert.equal(tm.getTheme(), 'dark');
+      tm.setTheme('light');
+      tm.destroy();
+    });
+  });
+
+  // ---- AutoSave: Edge cases ----
+  describe('AutoSave (Edge Cases)', () => {
+    it('TC-AS-005: should not emit file:save when content is unmodified', (done) => {
+      window.EventBus = new EventBus();
+      const as = new AutoSave();
+      let saved = false;
+      EventBus.on('file:save', () => { saved = true; });
+      as.start(50);
+      // Do NOT set _modified = true
+      setTimeout(() => {
+        as.stop();
+        assert.notOk(saved, 'file:save should NOT be emitted when unmodified');
+        as.destroy();
+        done();
+      }, 100);
+    });
+
+    it('TC-AS-006: should clear timer on destroy', () => {
+      window.EventBus = new EventBus();
+      const as = new AutoSave();
+      as.start(5000);
+      assert.ok(as.isEnabled());
+      as.destroy();
+      assert.notOk(as.isEnabled());
+    });
+  });
+
+  // ---- DiffEngine: Edge cases ----
+  describe('DiffEngine (Edge Cases)', () => {
+    let diff;
+
+    beforeEach(() => {
+      diff = new DiffEngine();
+    });
+
+    it('TC-DE-011: should handle one empty, one non-empty text', () => {
+      const result = diff.computeLineDiff('', 'new line');
+      const adds = result.changes.filter(c => c.type === 'add');
+      assert.ok(adds.length > 0, 'Should detect added lines when comparing empty to non-empty');
+    });
+
+    it('TC-DE-012: should handle multi-line consecutive changes', () => {
+      const result = diff.computeLineDiff('a\nb\nc\nd', 'a\nx\ny\nd');
+      // b and c are changed to x and y
+      const nonEqual = result.changes.filter(c => c.type !== 'equal');
+      assert.ok(nonEqual.length > 0, 'Should detect changes in consecutive modified lines');
+      // a and d should be equal
+      const equals = result.changes.filter(c => c.type === 'equal');
+      assert.ok(equals.length >= 2, 'Should have at least 2 equal lines (a and d)');
+    });
+
+    it('TC-DE-013: should handle special characters in text', () => {
+      const textA = '<div class="test">&amp;</div>';
+      const textB = '<div class="test">&amp;</div>';
+      const result = diff.computeLineDiff(textA, textB);
+      assert.ok(result.changes.every(c => c.type === 'equal'), 'Identical texts with special chars should be equal');
+    });
+
+    it('TC-DE-014: should compute async diff correctly', async () => {
+      const textA = 'line1\nline2\nline3';
+      const textB = 'line1\nmodified\nline3';
+      const result = await diff.computeAsync(textA, textB);
+      assert.ok(result.changes.length > 0);
+      assert.ok(result.stats);
+      const mods = result.changes.filter(c => c.type === 'modify');
+      assert.ok(mods.length > 0, 'Should detect modifications in async mode');
+    });
+  });
+
+  // ---- Editor: Undo/Redo ----
+  describe('EditorManager (Undo/Redo)', () => {
+    let editor, textarea, lineNums;
+
+    beforeEach(() => {
+      textarea = document.getElementById('test-editor-left');
+      lineNums = document.getElementById('test-line-numbers-left');
+      textarea.value = '';
+      lineNums.innerHTML = '';
+      window.EventBus = new EventBus();
+      editor = new EditorManager(textarea, lineNums, 'left');
+    });
+
+    afterEach(() => {
+      if (editor) editor.destroy();
+    });
+
+    it('TC-EM-011: should support multi-line text correctly', () => {
+      editor.setText('line1\nline2\nline3\nline4\nline5');
+      assert.equal(editor.getLineCount(), 5);
+      assert.equal(editor.getText().split('\n').length, 5);
+    });
+
+    it('TC-EM-012: should handle special characters in text', () => {
+      const specialText = '<script>alert("xss")</script>\n&amp;\n\ttabs';
+      editor.setText(specialText);
+      assert.equal(editor.getText(), specialText);
+    });
+  });
+
+  // ---- PanController: Reset test ----
+  describe('PanController (Extended)', () => {
+    it('TC-PC-007: should reset scroll position', () => {
+      const container = document.getElementById('test-editor-container');
+      window.EventBus = new EventBus();
+      const pan = new PanController(container);
+      const textarea = container.querySelector('.editor-textarea');
+      if (textarea) {
+        textarea.scrollLeft = 100;
+        textarea.scrollTop = 100;
+        pan.reset();
+        assert.equal(textarea.scrollLeft, 0);
+        assert.equal(textarea.scrollTop, 0);
+      }
+      pan.destroy();
+    });
+
+    it('TC-PC-008: should emit pan:end on mouseup', () => {
+      const container = document.getElementById('test-editor-container');
+      window.EventBus = new EventBus();
+      const pan = new PanController(container);
+      let ended = false;
+      EventBus.on('pan:end', () => { ended = true; });
+
+      container.dispatchEvent(new MouseEvent('mousedown', { altKey: true, bubbles: true }));
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      assert.ok(ended, 'pan:end should be emitted on mouseup after panning');
+      pan.destroy();
+    });
+  });
+
+  // ---- Integration: Zoom + Pan coordination ----
+  describe('Integration: Zoom + Pan (Extended)', () => {
+    it('TC-INT-010: zoom:change event should propagate zoom level', () => {
+      window.EventBus = new EventBus();
+      const container = document.getElementById('test-editor-container');
+      const zc = new ZoomController(container, { baseFontSize: 18 });
+      let receivedLevel = null;
+      EventBus.on('zoom:change', (data) => { receivedLevel = data.level; });
+      zc.zoomIn();
+      assert.equal(receivedLevel, 1.25);
+      zc.destroy();
+    });
+
+    it('TC-INT-011: zoom reset should emit both zoom:change and zoom:reset', () => {
+      window.EventBus = new EventBus();
+      const container = document.getElementById('test-editor-container');
+      const zc = new ZoomController(container, { baseFontSize: 18 });
+      let changeEmitted = false;
+      let resetEmitted = false;
+      EventBus.on('zoom:change', () => { changeEmitted = true; });
+      EventBus.on('zoom:reset', () => { resetEmitted = true; });
+      zc.setZoom(2.0);
+      changeEmitted = false; // reset flag after setZoom
+      zc.resetZoom();
+      assert.ok(changeEmitted, 'zoom:change should be emitted on reset');
+      assert.ok(resetEmitted, 'zoom:reset should be emitted on reset');
+      zc.destroy();
+    });
+  });
+
+  // ---- Integration: Diff + Split (Extended) ----
+  describe('Integration: Diff + Split (Extended)', () => {
+    it('TC-INT-012: diff:clear should be emitted when split is disabled', () => {
+      window.EventBus = new EventBus();
+      const container = document.getElementById('test-editor-container');
+      const sv = new SplitView(container);
+      let cleared = false;
+      EventBus.on('diff:clear', () => { cleared = true; });
+      sv.setSplit(true);
+      sv.setSplit(false);
+      assert.ok(cleared, 'diff:clear should be emitted when split mode is disabled');
+    });
+
+    it('TC-INT-013: split:resize event should be emitted on ratio change', () => {
+      window.EventBus = new EventBus();
+      const container = document.getElementById('test-editor-container');
+      const sv = new SplitView(container);
+      let resizeData = null;
+      EventBus.on('split:resize', (data) => { resizeData = data; });
+      sv.setSplitRatio(0.6);
+      assert.ok(resizeData, 'split:resize should be emitted');
+      assert.approximately(resizeData.ratio, 0.6, 0.01);
+    });
+  });
+
+  // ---- Integration: File + Editor (Extended) ----
+  describe('Integration: File + Editor (Extended)', () => {
+    it('TC-INT-014: file:new should reset editor state', () => {
+      window.EventBus = new EventBus();
+      let newEvent = null;
+      EventBus.on('file:new', (data) => { newEvent = data; });
+      const fm = new FileManager();
+      fm.createNew('left');
+      assert.ok(newEvent, 'file:new should be emitted');
+      assert.equal(newEvent.panelId, 'left');
+      assert.equal(fm.getFileName('left'), 'Untitled');
+    });
+
+    it('TC-INT-015: file drop should read content and emit file:open', async () => {
+      window.EventBus = new EventBus();
+      let openEvent = null;
+      EventBus.on('file:open', (data) => { openEvent = data; });
+      const fm = new FileManager();
+      const file = new File(['drop content here'], 'dropped.txt', { type: 'text/plain' });
+      const result = await fm.handleDrop('right', file);
+      assert.ok(result, 'handleDrop should return result');
+      assert.equal(result.name, 'dropped.txt');
+      assert.equal(result.content, 'drop content here');
+      assert.ok(openEvent, 'file:open should be emitted');
+      assert.equal(openEvent.panelId, 'right');
+    });
+  });
+
+  // ---- SettingsManager: Extended ----
+  describe('SettingsManager (Extended)', () => {
+    it('TC-SET-005: should handle unknown settings keys gracefully', () => {
+      const sm = new SettingsManager();
+      const result = sm.get('nonExistentKey');
+      assert.equal(result, undefined);
+    });
+
+    it('TC-SET-006: should preserve other settings when setting one', () => {
+      const sm = new SettingsManager();
+      sm.set('fontSize', 24);
+      sm.set('theme', 'dark');
+      assert.equal(sm.get('fontSize'), 24);
+      assert.equal(sm.get('theme'), 'dark');
+      sm.resetToDefaults();
     });
   });
 

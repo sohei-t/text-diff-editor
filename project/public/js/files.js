@@ -86,6 +86,16 @@ class FileManager {
         const content = await file.text();
         resolve({ name: file.name, content });
       };
+      // Handle cancel: when focus returns to window without a file selection
+      const onFocus = () => {
+        window.removeEventListener('focus', onFocus);
+        setTimeout(() => {
+          if (!input.files || input.files.length === 0) {
+            reject(new DOMException('User cancelled file picker', 'AbortError'));
+          }
+        }, 300);
+      };
+      window.addEventListener('focus', onFocus);
       input.click();
     });
   }

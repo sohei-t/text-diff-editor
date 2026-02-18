@@ -116,7 +116,8 @@ class SearchManager {
       }
     });
 
-    EventBus.on('search:open', (data) => this.open(data?.replace));
+    this._onSearchOpen = (data) => this.open(data?.replace);
+    EventBus.on('search:open', this._onSearchOpen);
   }
 
   open(showReplace = false) {
@@ -314,5 +315,9 @@ class SearchManager {
     // textarea doesn't support styled highlights directly; the selection serves as highlight
   }
 
-  destroy() {}
+  destroy() {
+    if (this._onSearchOpen) {
+      EventBus.off('search:open', this._onSearchOpen);
+    }
+  }
 }
