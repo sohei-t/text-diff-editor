@@ -350,9 +350,13 @@ class SplitView {
   constructor(container) {
     this.container = container;
     this.leftPanel = document.getElementById('panel-left');
+    this.centerPanel = document.getElementById('panel-center');
     this.rightPanel = document.getElementById('panel-right');
     this.splitter = document.getElementById('splitter');
+    this.splitter2 = document.getElementById('splitter-2');
     this._enabled = false;
+    /** @type {0|2|3} Number of visible panels (0=single, 2=dual, 3=triple) */
+    this.paneCount = 0;
     this.ratio = 0.5;
     this.syncScroll = true;
     this.dragging = false;
@@ -361,6 +365,7 @@ class SplitView {
     this.currentChangeIndex = -1;
 
     this._setupSplitter();
+    this._setupSplitter2();
     this._setupDiffListener();
     this._setupScrollSync();
   }
@@ -370,20 +375,24 @@ class SplitView {
 
     this._onSplitterMouseDown = (e) => {
       e.preventDefault();
-      this.dragging = true;
+      this.dragging = 'splitter1';
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
     };
 
     this._onSplitterMouseMove = (e) => {
-      if (!this.dragging) return;
+      if (this.dragging !== 'splitter1') return;
       const containerRect = this.container.getBoundingClientRect();
-      const newRatio = (e.clientX - containerRect.left) / containerRect.width;
-      this.setSplitRatio(newRatio);
+      const pos = (e.clientX - containerRect.left) / containerRect.width;
+      if (this.paneCount === 3) {
+        this._applyTripleRatios(pos, null);
+      } else {
+        this.setSplitRatio(pos);
+      }
     };
 
     this._onSplitterMouseUp = () => {
-      if (this.dragging) {
+      if (this.dragging === 'splitter1') {
         this.dragging = false;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
@@ -393,6 +402,36 @@ class SplitView {
     this.splitter.addEventListener('mousedown', this._onSplitterMouseDown);
     document.addEventListener('mousemove', this._onSplitterMouseMove);
     document.addEventListener('mouseup', this._onSplitterMouseUp);
+  }
+
+  _setupSplitter2() {
+    if (!this.splitter2) return;
+
+    this._onSplitter2MouseDown = (e) => {
+      e.preventDefault();
+      this.dragging = 'splitter2';
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    };
+
+    this._onSplitter2MouseMove = (e) => {
+      if (this.dragging !== 'splitter2') return;
+      const containerRect = this.container.getBoundingClientRect();
+      const pos = (e.clientX - containerRect.left) / containerRect.width;
+      this._applyTripleRatios(null, pos);
+    };
+
+    this._onSplitter2MouseUp = () => {
+      if (this.dragging === 'splitter2') {
+        this.dragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    };
+
+    this.splitter2.addEventListener('mousedown', this._onSplitter2MouseDown);
+    document.addEventListener('mousemove', this._onSplitter2MouseMove);
+    document.addEventListener('mouseup', this._onSplitter2MouseUp);
   }
 
   _setupDiffListener() {
@@ -425,35 +464,61 @@ class SplitView {
     });
   }
 
-  /** Toggle split view on or off. */
+  /** Cycle split mode: 1 → 2 → 3 → 1 */
   toggle() {
-    this.setSplit(!this._enabled);
+    if (this.paneCount === 0) {
+      this.setPaneCount(2);
+    } else if (this.paneCount === 2) {
+      this.setPaneCount(3);
+    } else {
+      this.setPaneCount(0);
+    }
   }
 
   /**
-   * Enable or disable split view mode.
-   * @param {boolean} enabled - Whether to enable split view.
+   * Set the number of visible panes.
+   * @param {0|2|3} count - 0=single, 2=dual, 3=triple
    */
-  setSplit(enabled) {
-    this._enabled = enabled;
+  setPaneCount(count) {
+    this.paneCount = count;
+    this._enabled = count >= 2;
 
-    if (enabled) {
+    // Reset all
+    this.container.classList.remove('split-mode', 'triple-mode');
+    this.rightPanel.hidden = true;
+    this.centerPanel.hidden = true;
+    this.splitter.hidden = true;
+    if (this.splitter2) this.splitter2.hidden = true;
+    this.leftPanel.style.width = '';
+    this.rightPanel.style.width = '';
+    if (this.centerPanel) this.centerPanel.style.width = '';
+
+    if (count === 2) {
       this.rightPanel.hidden = false;
       this.splitter.hidden = false;
       this.container.classList.add('split-mode');
       this._applyRatio();
+    } else if (count === 3) {
+      this.centerPanel.hidden = false;
+      this.rightPanel.hidden = false;
+      this.splitter.hidden = false;
+      if (this.splitter2) this.splitter2.hidden = false;
+      this.container.classList.add('split-mode', 'triple-mode');
+      this._applyTripleRatios();
     } else {
-      this.rightPanel.hidden = true;
-      this.splitter.hidden = true;
-      this.container.classList.remove('split-mode');
-      this.leftPanel.style.width = '';
-      this.rightPanel.style.width = '';
       this.changes = [];
       this.currentChangeIndex = -1;
       EventBus.emit('diff:clear', {});
     }
 
-    EventBus.emit('split:toggle', { enabled });
+    EventBus.emit('split:toggle', { enabled: this._enabled, paneCount: count });
+  }
+
+  /**
+   * @deprecated Use setPaneCount instead.
+   */
+  setSplit(enabled) {
+    this.setPaneCount(enabled ? 2 : 0);
   }
 
   /**
@@ -472,6 +537,34 @@ class SplitView {
     const splitterWidth = 8;
     this.leftPanel.style.width = `calc(${this.ratio * 100}% - ${splitterWidth / 2}px)`;
     this.rightPanel.style.width = `calc(${(1 - this.ratio) * 100}% - ${splitterWidth / 2}px)`;
+  }
+
+  /**
+   * Apply widths for 3-panel layout.
+   * @param {number|null} [split1Pos] - Position of splitter 1 (0-1). Null keeps current.
+   * @param {number|null} [split2Pos] - Position of splitter 2 (0-1). Null keeps current.
+   */
+  _applyTripleRatios(split1Pos, split2Pos) {
+    const sw = 8; // splitter width
+    const totalSplitterWidth = sw * 2;
+
+    // Current stored ratios (default: equal thirds)
+    if (!this._tripleR1) this._tripleR1 = 1 / 3;
+    if (!this._tripleR2) this._tripleR2 = 2 / 3;
+
+    if (split1Pos !== null && split1Pos !== undefined) {
+      this._tripleR1 = Utils.clamp(split1Pos, 0.15, this._tripleR2 - 0.15);
+    }
+    if (split2Pos !== null && split2Pos !== undefined) {
+      this._tripleR2 = Utils.clamp(split2Pos, this._tripleR1 + 0.15, 0.85);
+    }
+
+    const r1 = this._tripleR1;
+    const r2 = this._tripleR2;
+
+    this.leftPanel.style.width = `calc(${r1 * 100}% - ${sw}px)`;
+    this.centerPanel.style.width = `calc(${(r2 - r1) * 100}% - ${sw}px)`;
+    this.rightPanel.style.width = `calc(${(1 - r2) * 100}%)`;
   }
 
   /**
@@ -505,6 +598,7 @@ class SplitView {
    */
   setSyncScroll(enabled) {
     this.syncScroll = enabled;
+    EventBus.emit('sync:change', { enabled });
   }
 
   _navigateDiff(direction) {
@@ -540,6 +634,15 @@ class SplitView {
     }
     if (this._onSplitterMouseUp) {
       document.removeEventListener('mouseup', this._onSplitterMouseUp);
+    }
+    if (this.splitter2 && this._onSplitter2MouseDown) {
+      this.splitter2.removeEventListener('mousedown', this._onSplitter2MouseDown);
+    }
+    if (this._onSplitter2MouseMove) {
+      document.removeEventListener('mousemove', this._onSplitter2MouseMove);
+    }
+    if (this._onSplitter2MouseUp) {
+      document.removeEventListener('mouseup', this._onSplitter2MouseUp);
     }
   }
 }

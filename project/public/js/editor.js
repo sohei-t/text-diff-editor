@@ -26,8 +26,10 @@ class EditorManager {
     this.historyTimer = null;
     this._lastLineCount = 0;
 
-    this._setupEventListeners();
-    this.updateLineNumbers();
+    if (this.textarea) {
+      this._setupEventListeners();
+      this.updateLineNumbers();
+    }
   }
 
   _setupEventListeners() {
@@ -130,7 +132,7 @@ class EditorManager {
    * @returns {string}
    */
   getText() {
-    return this.textarea.value;
+    return this.textarea ? this.textarea.value : '';
   }
 
   /**
@@ -153,7 +155,7 @@ class EditorManager {
     }
     this.redoStack = [];
 
-    this.textarea.value = text;
+    if (this.textarea) this.textarea.value = text;
     this.lastContent = text;
     this.updateLineNumbers();
     EventBus.emit('editor:change', { panelId: this.panelId, content: text });
@@ -304,6 +306,7 @@ class EditorManager {
    * @returns {number}
    */
   getLineCount() {
+    if (!this.textarea) return 1;
     const text = this.textarea.value;
     if (text === '') return 1;
     return text.split('\n').length;
@@ -314,6 +317,7 @@ class EditorManager {
    * @param {number} line - 1-based line number.
    */
   scrollToLine(line) {
+    if (!this.textarea) return;
     const lineHeight = parseFloat(getComputedStyle(this.textarea).lineHeight) || 27;
     const targetTop = (line - 1) * lineHeight;
     this.textarea.scrollTo({ top: targetTop, behavior: 'smooth' });
@@ -324,6 +328,7 @@ class EditorManager {
    * @param {number} size - Font size in pixels.
    */
   setFontSize(size) {
+    if (!this.textarea) return;
     this.textarea.style.fontSize = `${size}px`;
     this.textarea.style.lineHeight = `${Math.round(size * 1.5)}px`;
     if (this.lineNumbers) {
@@ -337,6 +342,7 @@ class EditorManager {
    * @param {string} fontFamily - CSS font-family value.
    */
   setFontFamily(fontFamily) {
+    if (!this.textarea) return;
     this.textarea.style.fontFamily = fontFamily;
     if (this.lineNumbers) {
       this.lineNumbers.style.fontFamily = fontFamily;

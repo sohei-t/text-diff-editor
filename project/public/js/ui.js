@@ -339,13 +339,23 @@ class Toolbar {
           <span class="toolbar-icon">&#x1F4C4;</span>
           <span class="toolbar-label">New</span>
         </button>
-        <button id="btn-open" class="toolbar-btn" title="Open (Cmd+O)" aria-label="Open file">
-          <span class="toolbar-icon">&#x1F4C2;</span>
-          <span class="toolbar-label">Open</span>
-        </button>
+        <div class="toolbar-open-group">
+          <button id="btn-open" class="toolbar-btn" title="Open (Cmd+O)" aria-label="Open file">
+            <span class="toolbar-icon">&#x1F4C2;</span>
+            <span class="toolbar-label">Open</span>
+          </button>
+          <button id="btn-recent" class="toolbar-btn toolbar-recent-arrow" title="Recent Files" aria-label="Recent files" aria-haspopup="true" aria-expanded="false">
+            <span class="toolbar-icon toolbar-chevron">&#x25BE;</span>
+          </button>
+          <div id="recent-dropdown" class="recent-dropdown" role="menu" aria-label="Recent files"></div>
+        </div>
         <button id="btn-save" class="toolbar-btn" title="Save (Cmd+S)" aria-label="Save file">
           <span class="toolbar-icon">&#x1F4BE;</span>
           <span class="toolbar-label">Save</span>
+        </button>
+        <button id="btn-close" class="toolbar-btn" title="Close (Cmd+W)" aria-label="Close file">
+          <span class="toolbar-icon">&#x2715;</span>
+          <span class="toolbar-label">Close</span>
         </button>
       </div>
       <div class="toolbar-separator"></div>
@@ -354,9 +364,9 @@ class Toolbar {
           <span class="toolbar-icon">&#x2B1C;</span>
           <span class="toolbar-label">Split</span>
         </button>
-        <button id="btn-sync-scroll" class="toolbar-btn active" title="Sync Scroll" aria-label="Toggle scroll sync" aria-pressed="true">
+        <button id="btn-sync-scroll" class="toolbar-btn active" title="Sync: scroll & zoom together (click to toggle)" aria-label="Toggle sync mode" aria-pressed="true">
           <span class="toolbar-icon">&#x1F517;</span>
-          <span class="toolbar-label">Sync</span>
+          <span class="toolbar-label" id="sync-label">Sync</span>
         </button>
         <button id="btn-diff-prev" class="toolbar-btn" title="Previous Diff (Shift+F7)" aria-label="Previous difference" hidden>
           <span class="toolbar-icon">&uarr;</span>
@@ -424,6 +434,13 @@ class Toolbar {
       EventBus.emit('toolbar:action', { action: 'save' });
     });
 
+    document.getElementById('btn-close')?.addEventListener('click', () => {
+      EventBus.emit('toolbar:action', { action: 'close' });
+    });
+
+    // Recent files dropdown
+    this._setupRecentDropdown();
+
     // View operations
     document.getElementById('btn-split')?.addEventListener('click', () => {
       EventBus.emit('toolbar:action', { action: 'split' });
@@ -433,6 +450,11 @@ class Toolbar {
       const btn = e.currentTarget;
       const isActive = btn.classList.toggle('active');
       btn.setAttribute('aria-pressed', isActive);
+      const label = document.getElementById('sync-label');
+      if (label) label.textContent = isActive ? 'Sync' : 'Indep';
+      btn.title = isActive
+        ? 'Sync: scroll & zoom together (click for independent)'
+        : 'Independent: each panel scrolls & zooms separately (click for sync)';
       EventBus.emit('toolbar:action', { action: 'sync-scroll', params: { enabled: isActive } });
     });
 
@@ -496,13 +518,111 @@ class Toolbar {
 
     EventBus.on('split:toggle', (data) => {
       const splitBtn = document.getElementById('btn-split');
+      const splitLabel = splitBtn?.querySelector('.toolbar-label');
+      const splitIcon = splitBtn?.querySelector('.toolbar-icon');
       if (splitBtn) splitBtn.classList.toggle('active', data.enabled);
+
+      // Update button label to show pane count
+      const count = data.paneCount || (data.enabled ? 2 : 0);
+      if (splitLabel) {
+        splitLabel.textContent = count === 3 ? '3-Split' : count === 2 ? '2-Split' : 'Split';
+      }
+      if (splitIcon) {
+        splitIcon.innerHTML = count === 3 ? '&#x2B1C;&#x2B1C;&#x2B1C;' : '&#x2B1C;';
+      }
 
       const prevBtn = document.getElementById('btn-diff-prev');
       const nextBtn = document.getElementById('btn-diff-next');
       if (prevBtn) prevBtn.hidden = !data.enabled;
       if (nextBtn) nextBtn.hidden = !data.enabled;
     });
+  }
+
+  /** @private Set up the recent files dropdown toggle and event wiring. */
+  _setupRecentDropdown() {
+    const btn = document.getElementById('btn-recent');
+    const dropdown = document.getElementById('recent-dropdown');
+    if (!btn || !dropdown) return;
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !dropdown.hidden;
+      if (isOpen) {
+        dropdown.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+      } else {
+        this._renderRecentList();
+        dropdown.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+      }
+    });
+
+    // Close dropdown on outside click
+    document.addEventListener('click', (e) => {
+      if (!dropdown.hidden && !dropdown.contains(e.target) && e.target !== btn) {
+        dropdown.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Update dropdown content when recent files change
+    EventBus.on('recent:update', () => {
+      if (!dropdown.hidden) this._renderRecentList();
+    });
+  }
+
+  /** @private Render the recent files list into the dropdown. */
+  _renderRecentList() {
+    const dropdown = document.getElementById('recent-dropdown');
+    if (!dropdown) return;
+
+    const files = window.App?.fileManager?.getRecentFiles() || [];
+
+    if (files.length === 0) {
+      dropdown.innerHTML = '<div class="recent-empty">No recent files</div>';
+      return;
+    }
+
+    const items = files.map(f => {
+      const ago = f.time ? this._formatTimeAgo(f.time) : '';
+      return `<button class="recent-item" data-filename="${Utils.escapeHtml(f.name)}" role="menuitem">
+        <span class="recent-item-name">${Utils.escapeHtml(f.name)}</span>
+        ${ago ? `<span class="recent-item-time">${ago}</span>` : ''}
+      </button>`;
+    }).join('');
+
+    dropdown.innerHTML = items +
+      '<div class="recent-divider"></div>' +
+      '<button class="recent-item recent-clear" role="menuitem">Clear History</button>';
+
+    // Wire click handlers
+    dropdown.querySelectorAll('.recent-item[data-filename]').forEach(el => {
+      el.addEventListener('click', () => {
+        const name = el.dataset.filename;
+        dropdown.hidden = true;
+        document.getElementById('btn-recent')?.setAttribute('aria-expanded', 'false');
+        EventBus.emit('recent:open', { name });
+      });
+    });
+
+    dropdown.querySelector('.recent-clear')?.addEventListener('click', () => {
+      dropdown.hidden = true;
+      document.getElementById('btn-recent')?.setAttribute('aria-expanded', 'false');
+      EventBus.emit('recent:clear', {});
+    });
+  }
+
+  /**
+   * Format a timestamp as a relative time string.
+   * @param {number} time - Unix timestamp in ms.
+   * @returns {string}
+   */
+  _formatTimeAgo(time) {
+    const diff = Date.now() - time;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return `${Math.floor(diff / 86400000)}d ago`;
   }
 
   /**

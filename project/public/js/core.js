@@ -6,73 +6,75 @@
 // ============================================================
 // EventBus - Central Pub/Sub Communication Hub
 // ============================================================
-class EventBus {
-  constructor() {
-    /** @type {Object<string, Function[]>} */
-    this._listeners = {};
-  }
-
-  /**
-   * Subscribe to an event.
-   * @param {string} event - Event name.
-   * @param {Function} callback - Handler function.
-   * @returns {Function} Unsubscribe function.
-   */
-  on(event, callback) {
-    if (!this._listeners[event]) {
-      this._listeners[event] = [];
+// Wrapped in IIFE to prevent class name from shadowing window.EventBus
+window.EventBus = (() => {
+  class _EventBus {
+    constructor() {
+      /** @type {Object<string, Function[]>} */
+      this._listeners = {};
     }
-    this._listeners[event].push(callback);
-    return () => this.off(event, callback);
-  }
 
-  /**
-   * Unsubscribe from an event.
-   * @param {string} event - Event name.
-   * @param {Function} callback - Handler to remove.
-   */
-  off(event, callback) {
-    if (!this._listeners[event]) return;
-    this._listeners[event] = this._listeners[event].filter(cb => cb !== callback);
-  }
-
-  /**
-   * Emit an event with data.
-   * @param {string} event - Event name.
-   * @param {*} data - Payload.
-   */
-  emit(event, data) {
-    if (!this._listeners[event]) return;
-    this._listeners[event].forEach(cb => {
-      try {
-        cb(data);
-      } catch (_err) {
-        // Silently handle listener errors in production
+    /**
+     * Subscribe to an event.
+     * @param {string} event - Event name.
+     * @param {Function} callback - Handler function.
+     * @returns {Function} Unsubscribe function.
+     */
+    on(event, callback) {
+      if (!this._listeners[event]) {
+        this._listeners[event] = [];
       }
-    });
+      this._listeners[event].push(callback);
+      return () => this.off(event, callback);
+    }
+
+    /**
+     * Unsubscribe from an event.
+     * @param {string} event - Event name.
+     * @param {Function} callback - Handler to remove.
+     */
+    off(event, callback) {
+      if (!this._listeners[event]) return;
+      this._listeners[event] = this._listeners[event].filter(cb => cb !== callback);
+    }
+
+    /**
+     * Emit an event with data.
+     * @param {string} event - Event name.
+     * @param {*} data - Payload.
+     */
+    emit(event, data) {
+      if (!this._listeners[event]) return;
+      this._listeners[event].forEach(cb => {
+        try {
+          cb(data);
+        } catch (_err) {
+          // Silently handle listener errors in production
+        }
+      });
+    }
+
+    /**
+     * Subscribe to an event once; auto-unsubscribes after first call.
+     * @param {string} event - Event name.
+     * @param {Function} callback - Handler function.
+     */
+    once(event, callback) {
+      const wrapper = (data) => {
+        this.off(event, wrapper);
+        callback(data);
+      };
+      this.on(event, wrapper);
+    }
+
+    /** Remove all listeners. */
+    destroy() {
+      this._listeners = {};
+    }
   }
 
-  /**
-   * Subscribe to an event once; auto-unsubscribes after first call.
-   * @param {string} event - Event name.
-   * @param {Function} callback - Handler function.
-   */
-  once(event, callback) {
-    const wrapper = (data) => {
-      this.off(event, wrapper);
-      callback(data);
-    };
-    this.on(event, wrapper);
-  }
-
-  /** Remove all listeners. */
-  destroy() {
-    this._listeners = {};
-  }
-}
-
-// Global singleton
-window.EventBus = new EventBus();
+  return new _EventBus();
+})();
 
 // ============================================================
 // SettingsManager - localStorage-backed settings

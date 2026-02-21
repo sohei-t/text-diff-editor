@@ -319,6 +319,99 @@
       letter-spacing: 0.02em;
     }
 
+    /* Open + Recent group */
+    .toolbar-open-group {
+      display: flex;
+      align-items: center;
+      position: relative;
+    }
+
+    .toolbar-recent-arrow {
+      min-width: 24px !important;
+      padding: 0 2px !important;
+    }
+
+    .toolbar-chevron {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    .recent-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: var(--space-xs);
+      min-width: 260px;
+      max-height: 360px;
+      overflow-y: auto;
+      background: var(--bg-toast);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      padding: var(--space-xs);
+      z-index: 200;
+    }
+
+    .recent-dropdown[hidden] {
+      display: none;
+    }
+
+    .recent-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: var(--font-ui);
+      font-size: var(--font-size-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      text-align: left;
+      gap: var(--space-sm);
+      transition: background var(--transition-fast);
+    }
+
+    .recent-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .recent-item-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--font-mono);
+      font-size: var(--font-size-xs);
+    }
+
+    .recent-item-time {
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    .recent-clear {
+      color: var(--text-tertiary) !important;
+      font-size: var(--font-size-xs) !important;
+      justify-content: center !important;
+    }
+
+    .recent-divider {
+      height: 1px;
+      background: var(--border-primary);
+      margin: var(--space-xs) 0;
+    }
+
+    .recent-empty {
+      padding: var(--space-md);
+      text-align: center;
+      color: var(--text-tertiary);
+      font-size: var(--font-size-xs);
+    }
+
     /* Zoom Group */
     .toolbar-zoom-group {
       display: flex;
@@ -585,7 +678,7 @@
     .panel-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: var(--space-sm);
       padding: var(--space-xs) var(--space-md);
       background: var(--bg-panel-header);
       border-bottom: 1px solid var(--border-subtle);
@@ -599,6 +692,41 @@
       color: var(--text-tertiary);
       text-transform: uppercase;
       letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+
+    .panel-filename {
+      flex: 1;
+      font-size: var(--font-size-xs);
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .panel-close-btn {
+      flex-shrink: 0;
+      border: none;
+      background: transparent;
+      color: var(--text-tertiary);
+      font-size: 14px;
+      width: 24px;
+      height: 24px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition-fast);
+      opacity: 0.5;
+    }
+
+    .panel-close-btn:hover {
+      background: var(--bg-active);
+      color: var(--text-primary);
+      opacity: 1;
     }
 
     /* Editor Inner: line numbers + textarea */
@@ -699,6 +827,49 @@
 
     #splitter:hover::after {
       opacity: 0.8;
+    }
+
+    /* Splitter 2 (for 3-panel mode) */
+    #splitter-2 {
+      width: 8px;
+      background: var(--bg-splitter);
+      cursor: col-resize;
+      flex-shrink: 0;
+      position: relative;
+      transition: background var(--transition-fast);
+    }
+    #splitter-2:hover,
+    #splitter-2:active {
+      background: var(--accent);
+    }
+    #splitter-2::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px;
+      height: 32px;
+      background: var(--text-tertiary);
+      border-radius: 1px;
+      opacity: 0.5;
+    }
+    #splitter-2:hover::after {
+      opacity: 1;
+    }
+    #splitter-2[hidden] {
+      display: none;
+    }
+
+    /* 3-panel mode */
+    .triple-mode #panel-left,
+    .triple-mode #panel-center,
+    .triple-mode #panel-right {
+      flex: none;
+    }
+
+    #panel-center[hidden] {
+      display: none;
     }
 
     #splitter[hidden] {
@@ -1080,6 +1251,8 @@
     <div id="panel-left" class="editor-panel">
       <div class="panel-header">
         <span class="panel-title">Original</span>
+        <span class="panel-filename" id="panel-left-filename">Untitled</span>
+        <button class="panel-close-btn" data-panel="left" title="Close file" aria-label="Close file">&times;</button>
       </div>
       <div class="editor-inner">
         <div id="line-numbers-left" class="line-numbers" aria-hidden="true"></div>
@@ -1096,13 +1269,40 @@
       </div>
     </div>
 
-    <!-- Splitter (hidden when not in split mode) -->
+    <!-- Splitter 1 (hidden when not in split mode) -->
     <div id="splitter" hidden role="separator" aria-label="Resize panels" tabindex="0"></div>
+
+    <!-- Center Panel (hidden, shown in 3-panel mode) -->
+    <div id="panel-center" class="editor-panel" hidden>
+      <div class="panel-header">
+        <span class="panel-title">Center</span>
+        <span class="panel-filename" id="panel-center-filename">Untitled</span>
+        <button class="panel-close-btn" data-panel="center" title="Close file" aria-label="Close file">&times;</button>
+      </div>
+      <div class="editor-inner">
+        <div id="line-numbers-center" class="line-numbers" aria-hidden="true"></div>
+        <textarea
+          id="editor-center"
+          class="editor-textarea"
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          placeholder="Open a file..."
+          aria-label="Center editor panel"
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- Splitter 2 (hidden, shown in 3-panel mode) -->
+    <div id="splitter-2" class="splitter-el" hidden role="separator" aria-label="Resize panels" tabindex="0"></div>
 
     <!-- Right Panel (hidden when not in split mode) -->
     <div id="panel-right" class="editor-panel" hidden>
       <div class="panel-header">
         <span class="panel-title">Modified</span>
+        <span class="panel-filename" id="panel-right-filename">Untitled</span>
+        <button class="panel-close-btn" data-panel="right" title="Close file" aria-label="Close file">&times;</button>
       </div>
       <div class="editor-inner">
         <div id="line-numbers-right" class="line-numbers" aria-hidden="true"></div>
@@ -1162,6 +1362,12 @@
         'left'
       );
 
+      const editorCenter = new EditorManager(
+        document.getElementById('editor-center'),
+        document.getElementById('line-numbers-center'),
+        'center'
+      );
+
       const editorRight = new EditorManager(
         document.getElementById('editor-right'),
         document.getElementById('line-numbers-right'),
@@ -1184,6 +1390,7 @@
       // Apply initial settings
       const initFontSize = Settings.get('fontSize');
       editorLeft.setFontSize(initFontSize);
+      editorCenter.setFontSize(initFontSize);
       editorRight.setFontSize(initFontSize);
       toolbar.updateThemeIcon(themeManager.getTheme());
 
@@ -1198,13 +1405,45 @@
             editorLeft.clearModified();
             break;
 
-          case 'open':
-            fileManager.openFile('left');
+          case 'open': {
+            // Open in the focused panel, or left by default
+            const focusedPanel = document.activeElement?.closest('.editor-panel');
+            const targetId = focusedPanel?.id === 'panel-right' ? 'right'
+              : focusedPanel?.id === 'panel-center' ? 'center' : 'left';
+            fileManager.openFile(targetId);
             break;
+          }
 
-          case 'save':
-            fileManager.saveFile('left', editorLeft.getText());
+          case 'save': {
+            const savePanel = document.activeElement?.closest('.editor-panel');
+            if (savePanel?.id === 'panel-center') {
+              fileManager.saveFile('center', editorCenter.getText());
+            } else if (savePanel?.id === 'panel-right') {
+              fileManager.saveFile('right', editorRight.getText());
+            } else {
+              fileManager.saveFile('left', editorLeft.getText());
+            }
             break;
+          }
+
+          case 'close': {
+            // Close the focused panel's file (or left by default)
+            const closePanel = document.activeElement?.closest('.editor-panel');
+            const closePanelId = closePanel?.id === 'panel-right' ? 'right'
+              : closePanel?.id === 'panel-center' ? 'center' : 'left';
+            const editor = closePanelId === 'right' ? editorRight
+              : closePanelId === 'center' ? editorCenter : editorLeft;
+
+            if (editor.modified) {
+              if (!confirm('Unsaved changes will be lost. Close without saving?')) break;
+            }
+            fileManager.closeFile(closePanelId);
+            editor.setText('');
+            editor.clearModified();
+            editor.fileName = 'Untitled';
+            editor.fileHandle = null;
+            break;
+          }
 
           case 'split':
             splitView.toggle();
@@ -1212,6 +1451,7 @@
 
           case 'sync-scroll':
             splitView.setSyncScroll(data.params.enabled);
+            zoomController.setSyncZoom(data.params.enabled);
             break;
 
           case 'theme-toggle':
@@ -1221,6 +1461,7 @@
           case 'font-decrease': {
             const size = Math.max(12, (parseFloat(editorLeft.textarea.style.fontSize) || initFontSize) - 2);
             editorLeft.setFontSize(size);
+            editorCenter.setFontSize(size);
             editorRight.setFontSize(size);
             Settings.set('fontSize', size);
             break;
@@ -1229,6 +1470,7 @@
           case 'font-increase': {
             const size = Math.min(48, (parseFloat(editorLeft.textarea.style.fontSize) || initFontSize) + 2);
             editorLeft.setFontSize(size);
+            editorCenter.setFontSize(size);
             editorRight.setFontSize(size);
             Settings.set('fontSize', size);
             break;
@@ -1248,17 +1490,60 @@
       // EventBus Wiring: File Operations
       // ============================================================
       EventBus.on('file:open', (data) => {
+        const editor = data.panelId === 'right' ? editorRight
+          : data.panelId === 'center' ? editorCenter : editorLeft;
+        editor.setText(data.content);
+        editor.clearModified();
+        editor.fileName = data.name;
+        editor.fileHandle = data.handle;
+
+        // Update panel header filename
+        const fnEl = document.getElementById(`panel-${data.panelId}-filename`);
+        if (fnEl) fnEl.textContent = data.name;
+      });
+
+      EventBus.on('file:close', (data) => {
+        const fnEl = document.getElementById(`panel-${data.panelId}-filename`);
+        if (fnEl) fnEl.textContent = 'Untitled';
         if (data.panelId === 'left') {
-          editorLeft.setText(data.content);
-          editorLeft.clearModified();
-          editorLeft.fileName = data.name;
-          editorLeft.fileHandle = data.handle;
-        } else {
-          editorRight.setText(data.content);
-          editorRight.clearModified();
-          editorRight.fileName = data.name;
-          editorRight.fileHandle = data.handle;
+          statusBar.updateFileName('Untitled');
+          statusBar.updateModifiedIndicator(false);
         }
+      });
+
+      // ============================================================
+      // Per-panel close buttons (in panel headers)
+      // ============================================================
+      document.querySelectorAll('.panel-close-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const panelId = btn.dataset.panel;
+          const editor = panelId === 'right' ? editorRight
+            : panelId === 'center' ? editorCenter : editorLeft;
+
+          if (editor.modified) {
+            if (!confirm('Unsaved changes will be lost. Close without saving?')) return;
+          }
+          fileManager.closeFile(panelId);
+          editor.setText('');
+          editor.clearModified();
+          editor.fileName = 'Untitled';
+          editor.fileHandle = null;
+        });
+      });
+
+      // ============================================================
+      // EventBus Wiring: Recent Files
+      // ============================================================
+      EventBus.on('recent:open', (data) => {
+        const focusedPanel = document.activeElement?.closest('.editor-panel');
+        const panelId = focusedPanel?.id === 'panel-right' ? 'right'
+          : focusedPanel?.id === 'panel-center' ? 'center' : 'left';
+        fileManager.reopenRecent(data.name, panelId);
+      });
+
+      EventBus.on('recent:clear', () => {
+        fileManager.clearRecentFiles();
+        EventBus.emit('toast:show', { message: 'History cleared', type: 'info', duration: 2000 });
       });
 
       EventBus.on('file:new', (data) => {
@@ -1272,6 +1557,11 @@
         if (data.panelId === 'left') {
           fileManager.saveFile('left', editorLeft.getText());
         }
+      });
+
+      EventBus.on('file:saved', (data) => {
+        const fnEl = document.getElementById(`panel-${data.panelId}-filename`);
+        if (fnEl) fnEl.textContent = data.name;
       });
 
       // ============================================================
@@ -1385,6 +1675,12 @@
           EventBus.emit('toolbar:action', { action: 'save' });
         }
 
+        // Cmd+W: Close file
+        if (mod && e.key === 'w') {
+          e.preventDefault();
+          EventBus.emit('toolbar:action', { action: 'close' });
+        }
+
         // Cmd+F: Search
         if (mod && e.key === 'f') {
           e.preventDefault();
@@ -1432,14 +1728,8 @@
         }
       });
 
-      // ============================================================
-      // Prevent browser zoom (Cmd+scroll), allow our custom zoom
-      // ============================================================
-      document.addEventListener('wheel', (e) => {
-        if (e.ctrlKey) {
-          e.preventDefault();
-        }
-      }, { passive: false });
+      // Browser zoom prevention (Cmd+scroll, pinch) is handled by
+      // ZoomController in viewport.js (all listeners on document level)
 
       // ============================================================
       // Initial State: Trigger diff if split mode was remembered
@@ -1464,6 +1754,7 @@
       // ============================================================
       window.App = {
         editorLeft,
+        editorCenter,
         editorRight,
         zoomController,
         panController,
@@ -1481,7 +1772,7 @@
       // Unsaved Changes Warning (beforeunload)
       // ============================================================
       window.addEventListener('beforeunload', (e) => {
-        if (editorLeft.modified || editorRight.modified) {
+        if (editorLeft.modified || editorCenter.modified || editorRight.modified) {
           e.preventDefault();
           e.returnValue = '';
         }
@@ -1493,7 +1784,7 @@
       if (!Settings.get('welcomeShown')) {
         setTimeout(() => {
           toast.show(
-            'Welcome! Open a file (Cmd+O) or start typing. Use Cmd+\\ to compare files.',
+            'Welcome! Open a file (Cmd+O) or start typing. Cmd+Scroll to zoom. Cmd+\\ to split.',
             'info',
             6000
           );
@@ -1507,7 +1798,7 @@
       if (!Settings.get('panHintShown')) {
         const panHint = document.createElement('div');
         panHint.className = 'pan-hint';
-        panHint.textContent = 'Tip: Hold Alt and drag to pan the editor';
+        panHint.textContent = 'Tip: Cmd + Scroll to zoom. Alt + Drag to pan.';
         document.body.appendChild(panHint);
         setTimeout(() => { panHint.classList.add('visible'); }, 1000);
         setTimeout(() => {

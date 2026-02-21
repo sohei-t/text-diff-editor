@@ -11,8 +11,12 @@ class FileManager {
   constructor() {
     this.files = {
       left: { name: 'Untitled', handle: null, content: '' },
+      center: { name: 'Untitled', handle: null, content: '' },
       right: { name: 'Untitled', handle: null, content: '' }
     };
+
+    /** @type {Map<string, FileSystemFileHandle>} Session-level handle cache for reopening recent files */
+    this._handleCache = new Map();
 
     EventBus.on('file:save', (data) => this._onSaveRequest(data));
     EventBus.on('file:save-as', (data) => this._onSaveAsRequest(data));
@@ -56,6 +60,9 @@ class FileManager {
       }
 
       this.files[panelId] = { name, handle, content };
+
+      // Cache handle for session-level reopening
+      if (handle) this._handleCache.set(name, handle);
 
       // Track recent files
       this._addToRecentFiles(name);
@@ -258,22 +265,78 @@ class FileManager {
     }
   }
 
+  /**
+   * Close the file in a panel (clear content without saving).
+   * @param {string} panelId - Panel identifier.
+   */
+  closeFile(panelId) {
+    this.files[panelId] = { name: 'Untitled', handle: null, content: '' };
+    EventBus.emit('file:close', { panelId });
+  }
+
+  /**
+   * Reopen a recently opened file by name.
+   * Uses cached handle if available (same session), otherwise opens file picker.
+   * @param {string} name - File name to reopen.
+   * @param {string} panelId - Target panel.
+   * @returns {Promise<boolean>}
+   */
+  async reopenRecent(name, panelId) {
+    const handle = this._handleCache.get(name);
+    if (handle) {
+      try {
+        // Request permission (may prompt user)
+        const perm = await handle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') {
+          const req = await handle.requestPermission({ mode: 'readwrite' });
+          if (req !== 'granted') {
+            // Fall back to read-only
+            const readPerm = await handle.requestPermission({ mode: 'read' });
+            if (readPerm !== 'granted') {
+              return this._reopenFallback(name, panelId);
+            }
+          }
+        }
+        const file = await handle.getFile();
+        const content = await file.text();
+        this.files[panelId] = { name: file.name, handle, content };
+        this._addToRecentFiles(file.name);
+        EventBus.emit('file:open', { panelId, name: file.name, content, handle });
+        EventBus.emit('toast:show', { message: `Reopened: ${file.name}`, type: 'success', duration: 2000 });
+        return true;
+      } catch (_e) {
+        return this._reopenFallback(name, panelId);
+      }
+    }
+    return this._reopenFallback(name, panelId);
+  }
+
+  /** @private Fall back to file picker when handle is unavailable. */
+  async _reopenFallback(name, panelId) {
+    EventBus.emit('toast:show', { message: `Select "${name}" to reopen`, type: 'info', duration: 3000 });
+    return !!(await this.openFile(panelId));
+  }
+
   getFileName(panelId) {
     return this.files[panelId]?.name || 'Untitled';
   }
 
   /**
    * Add a filename to the recent files list in Settings.
+   * Stores objects with name and timestamp for richer display.
    * @param {string} name - File name.
    */
   _addToRecentFiles(name) {
     if (!name || name === 'Untitled') return;
     try {
       let recent = Settings.get('recentFiles') || [];
-      recent = recent.filter(f => f !== name);
-      recent.unshift(name);
+      // Migrate old format (plain strings) to objects
+      recent = recent.map(f => typeof f === 'string' ? { name: f, time: 0 } : f);
+      recent = recent.filter(f => f.name !== name);
+      recent.unshift({ name, time: Date.now() });
       if (recent.length > 10) recent = recent.slice(0, 10);
       Settings.set('recentFiles', recent);
+      EventBus.emit('recent:update', { files: recent });
     } catch (_e) {
       // Silently fail
     }
@@ -281,10 +344,20 @@ class FileManager {
 
   /**
    * Get the recent files list.
-   * @returns {string[]}
+   * @returns {{ name: string, time: number }[]}
    */
   getRecentFiles() {
-    return Settings.get('recentFiles') || [];
+    const raw = Settings.get('recentFiles') || [];
+    return raw.map(f => typeof f === 'string' ? { name: f, time: 0 } : f);
+  }
+
+  /**
+   * Clear the recent files history.
+   */
+  clearRecentFiles() {
+    Settings.set('recentFiles', []);
+    this._handleCache.clear();
+    EventBus.emit('recent:update', { files: [] });
   }
 
   _onSaveRequest(data) {

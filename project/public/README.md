@@ -2,6 +2,8 @@
 
 Mac mini + Magic Mouse に最適化された、見やすく使いやすいテキストエディター。
 
+> **[Live Demo](https://sohei-t.github.io/ai-agent-portfolio/text-diff-editor/)** | **[About / 解説ページ](https://sohei-t.github.io/ai-agent-portfolio/text-diff-editor/about.html)** | **[音声解説を聴く](https://sohei-t.github.io/ai-agent-portfolio/text-diff-editor/explanation.mp3)**
+
 ## 主な機能
 
 ### Magic Mouse ピンチズーム
