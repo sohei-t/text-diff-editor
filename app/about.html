@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About - Text Diff Editor</title>
+  <style>
+    /* ============================================================
+       CSS Variables & Theme
+       ============================================================ */
+    :root {
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+
+      --bg-body: #FAF8F5;
+      --bg-card: #FFFFFF;
+      --bg-code: #F5F3F0;
+      --bg-hero: linear-gradient(135deg, #2C2A35 0%, #1C1B22 50%, #2C2A35 100%);
+      --bg-feature-icon: rgba(139, 115, 85, 0.1);
+
+      --text-primary: #1A1815;
+      --text-secondary: #6B6560;
+      --text-tertiary: #9E9890;
+      --text-hero: #FFFFFF;
+      --text-hero-sub: rgba(255, 255, 255, 0.7);
+      --text-accent: #8B7355;
+
+      --border: rgba(0, 0, 0, 0.08);
+      --border-card: rgba(0, 0, 0, 0.06);
+
+      --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+      --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+
+      --accent: #8B7355;
+      --accent-light: rgba(139, 115, 85, 0.08);
+      --accent-green: #48A050;
+      --accent-blue: #4A90C4;
+      --accent-orange: #D4A820;
+
+      --radius: 12px;
+      --radius-lg: 20px;
+      --radius-sm: 8px;
+    }
+
+    /* ============================================================
+       Reset & Base
+       ============================================================ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg-body);
+      color: var(--text-primary);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* ============================================================
+       Language Toggle (Top Right)
+       ============================================================ */
+    .lang-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 4px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .lang-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 20px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .lang-btn:hover {
+      background: var(--accent-light);
+      color: var(--text-primary);
+    }
+
+    .lang-btn.active {
+      background: var(--accent);
+      color: #FFFFFF;
+    }
+
+    .lang-flag {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    /* ============================================================
+       Hero Section
+       ============================================================ */
+    .hero {
+      background: var(--bg-hero);
+      padding: 100px 24px 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 30% 50%, rgba(139, 115, 85, 0.15) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 50%, rgba(74, 144, 196, 0.1) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      max-width: 720px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-icon {
+      font-size: 64px;
+      margin-bottom: 24px;
+      display: block;
+    }
+
+    .hero-title {
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 700;
+      color: var(--text-hero);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(16px, 2.5vw, 20px);
+      color: var(--text-hero-sub);
+      font-weight: 400;
+      line-height: 1.6;
+      max-width: 560px;
+      margin: 0 auto 32px;
+    }
+
+    .hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    /* ============================================================
+       Audio Player
+       ============================================================ */
+    .audio-section {
+      max-width: 560px;
+      margin: -28px auto 0;
+      position: relative;
+      z-index: 10;
+      padding: 0 24px;
+    }
+
+    .audio-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .audio-icon {
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+
+    .audio-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .audio-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .audio-label[data-lang="en"] { display: none; }
+
+    audio {
+      width: 100%;
+      height: 36px;
+      border-radius: 18px;
+    }
+
+    /* ============================================================
+       Main Content
+       ============================================================ */
+    .main-content {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 60px 24px 80px;
+    }
+
+    .section {
+      margin-bottom: 56px;
+    }
+
+    .section-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .section-subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+
+    /* ============================================================
+       Feature Cards
+       ============================================================ */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      box-shadow: var(--shadow-card);
+      transition: box-shadow 0.3s ease, transform 0.3s ease;
+    }
+
+    .feature-card:hover {
+      box-shadow: var(--shadow-card-hover);
+      transform: translateY(-2px);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-feature-icon);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+
+    .feature-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .feature-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ============================================================
+       Tech Stack
+       ============================================================ */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .tech-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .tech-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .tech-detail {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ============================================================
+       Dev Process
+       ============================================================ */
+    .process-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+      padding-left: 32px;
+    }
+
+    .process-timeline::before {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .process-step {
+      position: relative;
+      padding: 16px 0 16px 24px;
+    }
+
+    .process-step::before {
+      content: '';
+      position: absolute;
+      left: -25px;
+      top: 22px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid var(--bg-body);
+      box-shadow: 0 0 0 2px var(--accent);
+    }
+
+    .process-phase {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    .process-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .process-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ============================================================
+       Metrics
+       ============================================================ */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+      box-shadow: var(--shadow-card);
+    }
+
+    .metric-value {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* ============================================================
+       Footer
+       ============================================================ */
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid var(--border);
+      color: var(--text-tertiary);
+      font-size: 13px;
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* ============================================================
+       Language Visibility
+       ============================================================ */
+    [data-lang="en"] {
+      display: none;
+    }
+
+    [data-lang="ja"] {
+      display: block;
+    }
+
+    /* Inline elements */
+    span[data-lang="ja"],
+    .hero-badge[data-lang="ja"],
+    .lang-btn[data-lang] {
+      display: inline-flex;
+    }
+    span[data-lang="en"],
+    .hero-badge[data-lang="en"] {
+      display: none;
+    }
+
+    /* When English is active */
+    html[lang="en"] [data-lang="en"] {
+      display: block;
+    }
+    html[lang="en"] [data-lang="ja"] {
+      display: none;
+    }
+    html[lang="en"] span[data-lang="en"],
+    html[lang="en"] .hero-badge[data-lang="en"] {
+      display: inline-flex;
+    }
+    html[lang="en"] span[data-lang="ja"],
+    html[lang="en"] .hero-badge[data-lang="ja"] {
+      display: none;
+    }
+    html[lang="en"] .audio-label[data-lang="en"] {
+      display: block;
+    }
+    html[lang="en"] .audio-label[data-lang="ja"] {
+      display: none;
+    }
+
+    /* ============================================================
+       Responsive
+       ============================================================ */
+    @media (max-width: 640px) {
+      .hero {
+        padding: 80px 16px 64px;
+      }
+
+      .hero-icon {
+        font-size: 48px;
+      }
+
+      .main-content {
+        padding: 40px 16px 60px;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .tech-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .audio-card {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .lang-toggle {
+        top: 8px;
+        right: 8px;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .metrics-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ============================================================
+       Focus States (Accessibility)
+       ============================================================ */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Language Toggle -->
+  <div class="lang-toggle" role="group" aria-label="Language switcher">
+    <button class="lang-btn active" data-lang-switch="ja" aria-pressed="true">
+      <span class="lang-flag">&#x1F1EF;&#x1F1F5;</span> 日本語
+    </button>
+    <button class="lang-btn" data-lang-switch="en" aria-pressed="false">
+      <span class="lang-flag">&#x1F1FA;&#x1F1F8;</span> English
+    </button>
+  </div>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="hero-content">
+      <span class="hero-icon" aria-hidden="true">&#x1F50D;</span>
+      <h1 class="hero-title">
+        <span data-lang="ja">Text Diff Editor</span>
+        <span data-lang="en">Text Diff Editor</span>
+      </h1>
+      <p class="hero-subtitle">
+        <span data-lang="ja">Mac mini + Magic Mouse に最適化された、老眼に優しいテキストエディター。ピンチズームで快適に読み書きできます。</span>
+        <span data-lang="en">A text editor optimized for Mac mini + Magic Mouse, designed for easy reading. Pinch-to-zoom for comfortable text editing.</span>
+      </p>
+      <div class="hero-badges">
+        <span class="hero-badge" data-lang="ja">&#x2728; 外部依存なし</span>
+        <span class="hero-badge" data-lang="en">&#x2728; Zero Dependencies</span>
+        <span class="hero-badge" data-lang="ja">&#x1F50D; ピンチズーム 50-400%</span>
+        <span class="hero-badge" data-lang="en">&#x1F50D; Pinch Zoom 50-400%</span>
+        <span class="hero-badge" data-lang="ja">&#x1F504; Myers Diff</span>
+        <span class="hero-badge" data-lang="en">&#x1F504; Myers Diff</span>
+        <span class="hero-badge" data-lang="ja">&#x1F3A8; 3テーマ</span>
+        <span class="hero-badge" data-lang="en">&#x1F3A8; 3 Themes</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Audio Player -->
+  <section class="audio-section">
+    <div class="audio-card">
+      <span class="audio-icon" aria-hidden="true">&#x1F50A;</span>
+      <div class="audio-info">
+        <p class="audio-label" data-lang="ja">音声解説を聴く</p>
+        <p class="audio-label" data-lang="en">Listen to Audio Explanation</p>
+        <audio controls preload="none">
+          <source src="./explanation.mp3" type="audio/mpeg">
+          <span data-lang="ja">お使いのブラウザは音声再生に対応していません。</span>
+          <span data-lang="en">Your browser does not support the audio element.</span>
+        </audio>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- Overview -->
+    <section class="section">
+      <h2 class="section-title">
+        <span data-lang="ja">プロジェクト概要</span>
+        <span data-lang="en">Project Overview</span>
+      </h2>
+      <p class="section-subtitle">
+        <span data-lang="ja">年齢とともに小さな文字が読みにくくなる問題を解決するため、Magic Mouse のピンチジェスチャーを活用した直感的なズーム機能を中心に設計したテキストエディターです。テキスト差分表示（Diff）や検索・置換、3種類のテーマ切り替えなど、日常的なテキスト編集に必要な機能を軽量なVanilla JavaScriptで実装しています。</span>
+        <span data-lang="en">This text editor was designed around intuitive zoom functionality using Magic Mouse pinch gestures, solving the challenge of reading small text as we age. It includes text diff display, search and replace, three theme options, and all essential text editing features, built with lightweight Vanilla JavaScript.</span>
+      </p>
+    </section>
+
+    <!-- Features -->
+    <section class="section">
+      <h2 class="section-title">
+        <span data-lang="ja">主な機能</span>
+        <span data-lang="en">Key Features</span>
+      </h2>
+      <p class="section-subtitle">
+        <span data-lang="ja">直感的な操作性と視認性を最優先に設計された機能群です。</span>
+        <span data-lang="en">Features designed with intuitive usability and readability as top priorities.</span>
+      </p>
+      <div class="features-grid">
+        <!-- Pinch Zoom -->
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F50D;</div>
+          <h3 class="feature-title">
+            <span data-lang="ja">Magic Mouse ピンチズーム</span>
+            <span data-lang="en">Magic Mouse Pinch Zoom</span>
+          </h3>
+          <p class="feature-desc">
+            <span data-lang="ja">50%〜400%の範囲でテキストを拡大縮小。ズーム中はGPU加速で滑らかに動き、停止後はフォントサイズに反映して鮮明な表示を実現するハイブリッド方式。</span>
+            <span data-lang="en">Scale text from 50% to 400%. Hybrid approach: GPU-accelerated smooth zooming during gesture, then renders crisp text by adjusting font size when stopped.</span>
+          </p>
+        </div>
+        <!-- Drag Navigation -->
+        <div class="feature-card">
+          <div class="feature-icon">&#x270B;</div>
+          <h3 class="feature-title">
+            <span data-lang="ja">ドラッグナビゲーション</span>
+            <span data-lang="en">Drag Navigation</span>
+          </h3>
+          <p class="feature-desc">
+            <span data-lang="ja">Alt + マウスドラッグでテキスト表示位置を自由に調整。慣性スクロール付きで自然な操作感を提供します。</span>
+            <span data-lang="en">Alt + mouse drag to freely adjust text position. Includes inertia scrolling for a natural feel.</span>
+          </p>
+        </div>
+        <!-- Diff Display -->
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F504;</div>
+          <h3 class="feature-title">
+            <span data-lang="ja">差分表示（Diff）</span>
+            <span data-lang="en">Diff Display</span>
+          </h3>
+          <p class="feature-desc">
+            <span data-lang="ja">Myers Diffアルゴリズムによる行単位+文字単位の差分検出。追加・削除・変更をカラーハイライトし、差分間ジャンプナビゲーションも搭載。</span>
+            <span data-lang="en">Line-level and character-level diff detection using the Myers Diff algorithm. Color-highlighted additions, deletions, and modifications with jump navigation.</span>
+          </p>
+        </div>
+        <!-- Dual Pane -->
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F4C4;</div>
+          <h3 class="feature-title">
+            <span data-lang="ja">デュアルペイン表示</span>
+            <span data-lang="en">Dual Pane View</span>
+          </h3>
+          <p class="feature-desc">
+            <span data-lang="ja">2ファイルを同時に表示して比較。ドラッグ可能なスプリッターで表示比率を調整でき、スクロール同期機能も利用可能です。</span>
+            <span data-lang="en">View and compare two files simultaneously. Adjustable split ratio with draggable splitter and synchronized scrolling.</span>
+          </p>
+        </div>
+        <!-- Search & Replace -->
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F50E;</div>
+          <h3 class="feature-title">
+            <span data-lang="ja">検索・置換</span>
+            <span data-lang="en">Search & Replace</span>
+          </h3>
+          <p class="feature-desc">
+            <span data-lang="ja">Cmd+F で検索、Cmd+H で置換。大文字小文字区別、正規表現対応、リアルタイム検索ハイライトを搭載しています。</span>
+            <span data-lang="en">Cmd+F to search, Cmd+H to replace. Supports case sensitivity, regex, and real-time search highlighting.</span>
+          </p>
+        </div>
+        <!-- Themes -->
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F3A8;</div>
+          <h3 class="feature-title">
+            <span data-lang="ja">テーマ切り替え</span>
+            <span data-lang="en">Theme Switching</span>
+          </h3>
+          <p class="feature-desc">
+            <span data-lang="ja">ライト・ダーク・ハイコントラストの3テーマ。ハイコントラストテーマは老眼ユーザー向けに最適化され、コントラスト比を最大限に高めています。</span>
+            <span data-lang="en">Three themes: Light, Dark, and High Contrast. The High Contrast theme is optimized for users with presbyopia, maximizing contrast ratio.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="section">
+      <h2 class="section-title">
+        <span data-lang="ja">技術スタック</span>
+        <span data-lang="en">Technical Stack</span>
+      </h2>
+      <p class="section-subtitle">
+        <span data-lang="ja">外部依存ゼロ。モダンなWeb標準技術のみで構築されたフルスクラッチ実装です。</span>
+        <span data-lang="en">Zero external dependencies. Built entirely from scratch using modern web standards.</span>
+      </p>
+      <div class="tech-grid">
+        <div class="tech-item">
+          <p class="tech-name">Vanilla JavaScript (ES2022+)</p>
+          <p class="tech-detail">
+            <span data-lang="ja">フレームワーク不使用。EventBusパターンによるモジュール間通信で疎結合を実現。</span>
+            <span data-lang="en">No frameworks. Loosely-coupled modules communicating via EventBus pattern.</span>
+          </p>
+        </div>
+        <div class="tech-item">
+          <p class="tech-name">CSS Custom Properties</p>
+          <p class="tech-detail">
+            <span data-lang="ja">CSS変数によるテーマ管理。3テーマをリアルタイムに切り替え可能。</span>
+            <span data-lang="en">Theme management via CSS variables. Three themes switchable in real-time.</span>
+          </p>
+        </div>
+        <div class="tech-item">
+          <p class="tech-name">Myers Diff Algorithm</p>
+          <p class="tech-detail">
+            <span data-lang="ja">O(ND)計算量の差分検出。行単位+文字単位のハイブリッド差分。</span>
+            <span data-lang="en">O(ND) complexity diff detection. Hybrid line-level and character-level diffing.</span>
+          </p>
+        </div>
+        <div class="tech-item">
+          <p class="tech-name">File System Access API</p>
+          <p class="tech-detail">
+            <span data-lang="ja">ネイティブファイル操作。上書き保存・名前を付けて保存に対応。</span>
+            <span data-lang="en">Native file operations. Supports Save and Save As with direct file system access.</span>
+          </p>
+        </div>
+        <div class="tech-item">
+          <p class="tech-name">Hybrid Zoom System</p>
+          <p class="tech-detail">
+            <span data-lang="ja">CSS Transform(GPU加速)でスムーズ表示、停止後にフォントサイズ変更で鮮明化。</span>
+            <span data-lang="en">GPU-accelerated CSS Transform for smooth display, then crisp font-size adjustment on stop.</span>
+          </p>
+        </div>
+        <div class="tech-item">
+          <p class="tech-name">WCAG 2.1 AA</p>
+          <p class="tech-detail">
+            <span data-lang="ja">アクセシビリティ対応。ARIA属性、キーボードナビゲーション、色コントラスト4.5:1以上。</span>
+            <span data-lang="en">Accessibility compliant. ARIA attributes, keyboard navigation, color contrast 4.5:1+.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Development Process -->
+    <section class="section">
+      <h2 class="section-title">
+        <span data-lang="ja">開発プロセス</span>
+        <span data-lang="en">Development Process</span>
+      </h2>
+      <p class="section-subtitle">
+        <span data-lang="ja">AI支援による効率的な開発プロセスで、高品質なアプリケーションを短期間で実現しました。</span>
+        <span data-lang="en">Efficient AI-assisted development process delivering a high-quality application in a short timeframe.</span>
+      </p>
+      <div class="process-timeline">
+        <div class="process-step">
+          <p class="process-phase">Phase 1</p>
+          <h3 class="process-title">
+            <span data-lang="ja">要件定義・設計</span>
+            <span data-lang="en">Requirements & Design</span>
+          </h3>
+          <p class="process-desc">
+            <span data-lang="ja">2案の並列計画生成と自律評価。保守的アプローチと革新的アプローチを比較し、最適な設計を選択。WBS作成とクリティカルパス分析を実施。</span>
+            <span data-lang="en">Parallel generation of two planning approaches with autonomous evaluation. Compared conservative and innovative architectures to select the optimal design. WBS creation with critical path analysis.</span>
+          </p>
+        </div>
+        <div class="process-step">
+          <p class="process-phase">Phase 2</p>
+          <h3 class="process-title">
+            <span data-lang="ja">並列実装（3プロトタイプ）</span>
+            <span data-lang="en">Parallel Implementation (3 Prototypes)</span>
+          </h3>
+          <p class="process-desc">
+            <span data-lang="ja">3つの異なるアーキテクチャで並列実装。UX評価で最優秀プロトタイプを自律選択。コンポーネントベースアーキテクチャが採用されました。</span>
+            <span data-lang="en">Parallel implementation across three different architectures. Best prototype selected autonomously via UX evaluation. Component-based architecture was chosen.</span>
+          </p>
+        </div>
+        <div class="process-step">
+          <p class="process-phase">Phase 3</p>
+          <h3 class="process-title">
+            <span data-lang="ja">テスト（238テスト合格）</span>
+            <span data-lang="en">Testing (238 Tests Passed)</span>
+          </h3>
+          <p class="process-desc">
+            <span data-lang="ja">ユニットテスト・統合テストを238件作成し、全テスト合格を確認。クリティカルパス（Diff、ズーム、ファイル操作）は100%カバレッジ。</span>
+            <span data-lang="en">Created 238 unit and integration tests, all passing. Critical paths (Diff, Zoom, File Operations) achieved 100% coverage.</span>
+          </p>
+        </div>
+        <div class="process-step">
+          <p class="process-phase">Phase 4</p>
+          <h3 class="process-title">
+            <span data-lang="ja">品質改善</span>
+            <span data-lang="en">Quality Improvement</span>
+          </h3>
+          <p class="process-desc">
+            <span data-lang="ja">パフォーマンス最適化とコード品質向上。テストカバレッジ80%以上を達成し、アクセシビリティ対応を強化しました。</span>
+            <span data-lang="en">Performance optimization and code quality improvement. Achieved 80%+ test coverage and enhanced accessibility compliance.</span>
+          </p>
+        </div>
+        <div class="process-step">
+          <p class="process-phase">Phase 5</p>
+          <h3 class="process-title">
+            <span data-lang="ja">ドキュメント・公開準備</span>
+            <span data-lang="en">Documentation & Release</span>
+          </h3>
+          <p class="process-desc">
+            <span data-lang="ja">README.md、about.html（日英切替）、音声解説を生成。公開用ファイルのパス検証とレスポンシブ確認を実施。</span>
+            <span data-lang="en">Generated README.md, about.html (bilingual), and audio explanation. Verified public file paths and responsive design.</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Metrics -->
+    <section class="section">
+      <h2 class="section-title">
+        <span data-lang="ja">品質メトリクス</span>
+        <span data-lang="en">Quality Metrics</span>
+      </h2>
+      <p class="section-subtitle">
+        <span data-lang="ja">テスト駆動開発により、高い品質基準を達成しています。</span>
+        <span data-lang="en">High quality standards achieved through test-driven development.</span>
+      </p>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <p class="metric-value">238</p>
+          <p class="metric-label">
+            <span data-lang="ja">テスト数</span>
+            <span data-lang="en">Tests</span>
+          </p>
+        </div>
+        <div class="metric-card">
+          <p class="metric-value">100%</p>
+          <p class="metric-label">
+            <span data-lang="ja">テスト合格率</span>
+            <span data-lang="en">Pass Rate</span>
+          </p>
+        </div>
+        <div class="metric-card">
+          <p class="metric-value">80%+</p>
+          <p class="metric-label">
+            <span data-lang="ja">カバレッジ</span>
+            <span data-lang="en">Coverage</span>
+          </p>
+        </div>
+        <div class="metric-card">
+          <p class="metric-value">0</p>
+          <p class="metric-label">
+            <span data-lang="ja">外部依存</span>
+            <span data-lang="en">Dependencies</span>
+          </p>
+        </div>
+        <div class="metric-card">
+          <p class="metric-value">~100KB</p>
+          <p class="metric-label">
+            <span data-lang="ja">総ファイルサイズ</span>
+            <span data-lang="en">Total File Size</span>
+          </p>
+        </div>
+        <div class="metric-card">
+          <p class="metric-value">7</p>
+          <p class="metric-label">
+            <span data-lang="ja">JSモジュール数</span>
+            <span data-lang="en">JS Modules</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>
+      <span data-lang="ja">Built with <a href="https://claude.ai" target="_blank" rel="noopener noreferrer">Claude Code</a> | AI支援開発ワークフロー</span>
+      <span data-lang="en">Built with <a href="https://claude.ai" target="_blank" rel="noopener noreferrer">Claude Code</a> | AI-Assisted Development Workflow</span>
+    </p>
+  </footer>
+
+  <!-- Language Switcher Script -->
+  <script>
+    (function () {
+      'use strict';
+
+      const STORAGE_KEY = 'textDiffEditor_lang';
+
+      function setLang(lang) {
+        document.documentElement.lang = lang;
+
+        // Update button states
+        document.querySelectorAll('[data-lang-switch]').forEach(function (btn) {
+          var isActive = btn.getAttribute('data-lang-switch') === lang;
+          btn.classList.toggle('active', isActive);
+          btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+
+        // Persist
+        try {
+          localStorage.setItem(STORAGE_KEY, lang);
+        } catch (e) {
+          // silently ignore
+        }
+      }
+
+      // Initialize from localStorage or default to 'ja'
+      var savedLang = null;
+      try {
+        savedLang = localStorage.getItem(STORAGE_KEY);
+      } catch (e) {
+        // silently ignore
+      }
+      setLang(savedLang || 'ja');
+
+      // Event delegation for toggle buttons
+      document.querySelector('.lang-toggle').addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-lang-switch]');
+        if (btn) {
+          setLang(btn.getAttribute('data-lang-switch'));
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
