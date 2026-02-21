@@ -46,8 +46,17 @@ private/
 tmp/
 temp/
 
-# Project-specific generated files (should be generated per project)
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# Development artifacts
+worktrees/
+_workflow/
+publish_to_portfolio.sh
+release.sh
+cleanup_portfolio.sh
+
+# Project-specific generated files
 AUDIO_PROMPTS.json
 IMAGE_PROMPTS.json
-# GCP credentials (auto-generated)
 credentials/*.json
