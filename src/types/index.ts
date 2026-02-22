@@ -6,23 +6,24 @@ export type ThemeName = 'light' | 'dark' | 'high-contrast';
 // ============================================================
 // Settings Types
 // ============================================================
+/** Application settings persisted to localStorage */
 export interface Settings {
-  theme: ThemeName;
-  fontSize: number;
-  fontFamily: string;
-  lineHeight: number;
-  wordWrap: boolean;
-  showLineNumbers: boolean;
-  highlightCurrentLine: boolean;
-  autoSaveInterval: number;
-  splitRatio: number;
-  syncScroll: boolean;
-  lastZoomLevel: number;
-  recentFiles: RecentFile[];
-  welcomeShown: boolean;
+  readonly theme: ThemeName;
+  readonly fontSize: number;
+  readonly fontFamily: string;
+  readonly lineHeight: number;
+  readonly wordWrap: boolean;
+  readonly showLineNumbers: boolean;
+  readonly highlightCurrentLine: boolean;
+  readonly autoSaveInterval: number;
+  readonly splitRatio: number;
+  readonly syncScroll: boolean;
+  readonly lastZoomLevel: number;
+  readonly recentFiles: RecentFile[];
+  readonly welcomeShown: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS = {
   theme: 'light',
   fontSize: 18,
   fontFamily: '"SF Mono", "Menlo", "Monaco", "Consolas", monospace',
@@ -36,28 +37,40 @@ export const DEFAULT_SETTINGS: Settings = {
   lastZoomLevel: 1.0,
   recentFiles: [],
   welcomeShown: false,
-};
+} as const satisfies Settings;
 
 // ============================================================
 // Editor Types
 // ============================================================
 export type PanelId = 'left' | 'center' | 'right';
 
+/** Cursor line/column position in the editor */
 export interface CursorPosition {
-  line: number;
-  column: number;
+  readonly line: number;
+  readonly column: number;
 }
 
+/** A text selection range with the selected text */
 export interface TextSelection {
-  start: number;
-  end: number;
-  text: string;
+  readonly start: number;
+  readonly end: number;
+  readonly text: string;
 }
 
+/** Undo/redo history state */
 export interface UndoRedoState {
-  undoStack: string[];
-  redoStack: string[];
-  lastContent: string;
+  readonly undoStack: string[];
+  readonly redoStack: string[];
+  readonly lastContent: string;
+}
+
+/** Panel content state */
+export interface PanelState {
+  readonly content: string;
+  readonly modified: boolean;
+  readonly fileName: string;
+  readonly fileHandle: FileSystemFileHandle | null;
+  readonly cursorPosition: CursorPosition;
 }
 
 // ============================================================
@@ -70,15 +83,17 @@ export interface InlineDiff {
   text: string;
 }
 
+/** A single diff change between two texts */
 export interface DiffChange {
-  type: ChangeType;
-  lineLeft: number | null;
-  lineRight: number | null;
-  contentLeft: string;
-  contentRight: string;
-  inlineDiffs: InlineDiff[];
+  readonly type: ChangeType;
+  readonly lineLeft: number | null;
+  readonly lineRight: number | null;
+  readonly contentLeft: string;
+  readonly contentRight: string;
+  readonly inlineDiffs: InlineDiff[];
 }
 
+/** Summary statistics for a diff result */
 export interface DiffStats {
   added: number;
   deleted: number;
@@ -86,9 +101,10 @@ export interface DiffStats {
   unchanged: number;
 }
 
+/** Complete result of a diff computation */
 export interface DiffResult {
-  changes: DiffChange[];
-  stats: DiffStats;
+  readonly changes: DiffChange[];
+  readonly stats: DiffStats;
 }
 
 // ============================================================
@@ -131,11 +147,38 @@ export interface SearchMatch {
 }
 
 export interface SearchState {
-  query: string;
-  caseSensitive: boolean;
-  useRegex: boolean;
-  matches: SearchMatch[];
-  currentIndex: number;
-  isOpen: boolean;
-  showReplace: boolean;
+  readonly query: string;
+  readonly caseSensitive: boolean;
+  readonly useRegex: boolean;
+  readonly matches: SearchMatch[];
+  readonly currentIndex: number;
+  readonly isOpen: boolean;
+  readonly showReplace: boolean;
 }
+
+// ============================================================
+// Utility Types
+// ============================================================
+
+/** Immutable settings from localStorage */
+export type ReadonlySettings = Readonly<Settings>;
+
+/** Partial settings for updates */
+export type SettingsUpdate = Partial<Settings>;
+
+/** Panel content update */
+export type PanelContentUpdate = Pick<PanelState, 'content'>;
+
+/** Hook return type for async operations */
+export interface AsyncState<T> {
+  readonly data: T | null;
+  readonly loading: boolean;
+  readonly error: string | null;
+}
+
+/** File operation result */
+export type FileOperationResult = {
+  readonly success: boolean;
+  readonly fileName?: string;
+  readonly error?: string;
+};

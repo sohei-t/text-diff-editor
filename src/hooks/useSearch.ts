@@ -15,6 +15,7 @@ interface UseSearchReturn extends SearchState {
   replaceAll: (textarea: HTMLTextAreaElement | null) => number;
   replaceText: string;
   setReplaceText: (text: string) => void;
+  regexError: string | null;
 }
 
 export function useSearch(): UseSearchReturn {
@@ -28,6 +29,7 @@ export function useSearch(): UseSearchReturn {
     showReplace: false,
   });
   const [replaceText, setReplaceText] = useState('');
+  const [regexError, setRegexError] = useState<string | null>(null);
 
   const open = useCallback((showReplace = false) => {
     setState((prev) => ({ ...prev, isOpen: true, showReplace: showReplace || prev.showReplace }));
@@ -59,6 +61,7 @@ export function useSearch(): UseSearchReturn {
     (text: string): SearchMatch[] => {
       if (!state.query || !text) {
         setState((prev) => ({ ...prev, matches: [], currentIndex: -1 }));
+        setRegexError(null);
         return [];
       }
 
@@ -71,6 +74,8 @@ export function useSearch(): UseSearchReturn {
           regex = new RegExp(escaped, state.caseSensitive ? 'g' : 'gi');
         }
 
+        setRegexError(null);
+
         const matches: SearchMatch[] = [];
         let match: RegExpExecArray | null;
         while ((match = regex.exec(text)) !== null) {
@@ -81,7 +86,9 @@ export function useSearch(): UseSearchReturn {
         const currentIndex = matches.length > 0 ? 0 : -1;
         setState((prev) => ({ ...prev, matches, currentIndex }));
         return matches;
-      } catch {
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Invalid regex pattern';
+        setRegexError(message);
         setState((prev) => ({ ...prev, matches: [], currentIndex: -1 }));
         return [];
       }
@@ -176,5 +183,6 @@ export function useSearch(): UseSearchReturn {
     replaceAll,
     replaceText,
     setReplaceText,
+    regexError,
   };
 }

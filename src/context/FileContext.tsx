@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from 'react';
 import type { PanelId, RecentFile } from '../types';
 import { useSettings } from './SettingsContext';
 import { useToast } from './ToastContext';
@@ -116,7 +116,9 @@ export function FileProvider({ children }: { children: ReactNode }) {
         return { name, content, handle };
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return null;
-        showToast('Failed to open file', 'error', 3000);
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        console.error('File open failed:', err);
+        showToast(`Failed to open file: ${message}`, 'error', 3000);
         return null;
       }
     },
@@ -146,7 +148,9 @@ export function FileProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return null;
-        showToast('Failed to save file', 'error', 3000);
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        console.error('File save failed:', err);
+        showToast(`Failed to save file: ${message}`, 'error', 3000);
         return null;
       }
     },
@@ -177,7 +181,9 @@ export function FileProvider({ children }: { children: ReactNode }) {
         return { name, handle };
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return null;
-        showToast('Failed to save file', 'error', 3000);
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        console.error('File save-as failed:', err);
+        showToast(`Failed to save file: ${message}`, 'error', 3000);
         return null;
       }
     },
@@ -215,18 +221,21 @@ export function FileProvider({ children }: { children: ReactNode }) {
     [openFile, addToRecentFiles, showToast]
   );
 
+  const value = useMemo<FileContextValue>(
+    () => ({
+      openFile,
+      saveFile,
+      saveAsFile,
+      isNativeSupported,
+      getRecentFiles,
+      clearRecentFiles,
+      reopenRecent,
+    }),
+    [openFile, saveFile, saveAsFile, isNativeSupported, getRecentFiles, clearRecentFiles, reopenRecent]
+  );
+
   return (
-    <FileContext.Provider
-      value={{
-        openFile,
-        saveFile,
-        saveAsFile,
-        isNativeSupported,
-        getRecentFiles,
-        clearRecentFiles,
-        reopenRecent,
-      }}
-    >
+    <FileContext.Provider value={value}>
       {children}
     </FileContext.Provider>
   );

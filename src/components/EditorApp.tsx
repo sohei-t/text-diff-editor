@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useEditorContext } from '../context/EditorContext';
 import { useSplitContext } from '../context/SplitContext';
 import { useDiffContext } from '../context/DiffContext';
@@ -10,7 +10,8 @@ import { usePan } from '../hooks/usePan';
 import { useSearch } from '../hooks/useSearch';
 import { useAutoSave } from '../hooks/useAutoSave';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { useDebouncedCallback } from '../hooks/useDebounce';
+import { useDiffComputation } from '../hooks/useDiffComputation';
+import { useWelcomeMessage } from '../hooks/useWelcomeMessage';
 import type { PanelId } from '../types';
 
 import Toolbar from './toolbar/Toolbar';
@@ -19,13 +20,13 @@ import EditorContainer from './editor/EditorContainer';
 import StatusBar from './status/StatusBar';
 import ToastContainer from './ui/ToastContainer';
 
-const EditorApp: React.FC = () => {
+const EditorApp = React.memo(function EditorApp() {
   const { panels, activePanelId, setContent, setModified, setFileName, setFileHandle, textareaRefs } =
     useEditorContext();
   const { paneCount, toggleSplit } = useSplitContext();
-  const { computeDiff, clearDiff, stats, diffChangesOnly, currentChangeIndex, navigateDiff } =
+  const { stats, diffChangesOnly, currentChangeIndex, navigateDiff } =
     useDiffContext();
-  const { openFile, saveFile, clearRecentFiles, reopenRecent } = useFileContext();
+  const { openFile, saveFile, reopenRecent } = useFileContext();
   const { settings, setSetting } = useSettings();
   const { showToast } = useToast();
 
@@ -35,42 +36,36 @@ const EditorApp: React.FC = () => {
   usePan(containerRef);
 
   const search = useSearch();
-  const welcomeShownRef = useRef(false);
 
-  // Auto-save
+  // Extracted hooks
+  const leftContent = panels.left.content;
+  const rightContent = panels.right.content;
+  const isSplit = paneCount >= 2;
+
+  useDiffComputation(isSplit, leftContent, rightContent);
+  useWelcomeMessage();
+
+  // Auto-save with error handling
   const handleAutoSave = useCallback(() => {
     const panel = panels.left;
     if (panel.modified) {
-      saveFile('left', panel.content, panel.fileName, panel.fileHandle);
+      try {
+        saveFile('left', panel.content, panel.fileName, panel.fileHandle).catch((err) => {
+          console.error('Auto-save failed:', err);
+          showToast('Auto-save failed. Please save manually.', 'error', 3000);
+        });
+      } catch (err) {
+        console.error('Auto-save failed:', err);
+        showToast('Auto-save failed. Please save manually.', 'error', 3000);
+      }
     }
-  }, [panels.left, saveFile]);
+  }, [panels.left, saveFile, showToast]);
 
   useAutoSave({
     intervalMs: settings.autoSaveInterval,
     modified: panels.left.modified,
     onSave: handleAutoSave,
   });
-
-  // Debounced diff computation
-  const debouncedComputeDiff = useDebouncedCallback(
-    (textA: string, textB: string) => {
-      computeDiff(textA, textB);
-    },
-    150
-  );
-
-  // Trigger diff when content changes in split mode
-  const leftContent = panels.left.content;
-  const rightContent = panels.right.content;
-  const isSplit = paneCount >= 2;
-
-  useEffect(() => {
-    if (isSplit) {
-      debouncedComputeDiff(leftContent, rightContent);
-    } else {
-      clearDiff();
-    }
-  }, [leftContent, rightContent, isSplit, debouncedComputeDiff, clearDiff]);
 
   // Search: trigger search when query or options change
   useEffect(() => {
@@ -81,22 +76,6 @@ const EditorApp: React.FC = () => {
       }
     }
   }, [search.query, search.caseSensitive, search.useRegex]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Welcome message (first launch)
-  useEffect(() => {
-    if (!settings.welcomeShown && !welcomeShownRef.current) {
-      welcomeShownRef.current = true;
-      const timer = setTimeout(() => {
-        showToast(
-          'Welcome! Open a file (Cmd+O) or start typing. Cmd+Scroll to zoom. Cmd+\\ to split.',
-          'info',
-          6000
-        );
-        setSetting('welcomeShown', true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [settings.welcomeShown, showToast, setSetting]);
 
   // Prevent browser zoom on Cmd+scroll
   useEffect(() => {
@@ -353,6 +332,6 @@ const EditorApp: React.FC = () => {
       <ToastContainer />
     </>
   );
-};
+});
 
 export default EditorApp;

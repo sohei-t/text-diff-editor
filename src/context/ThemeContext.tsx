@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ThemeName } from '../types';
 
 interface ThemeContextValue {
@@ -58,8 +58,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const value = useMemo<ThemeContextValue>(
+    () => ({ theme, setTheme, toggleTheme, availableThemes: THEMES }),
+    [theme, setTheme, toggleTheme]
+  );
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, availableThemes: THEMES }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { DEFAULT_SETTINGS, type Settings } from '../types';
 
 interface SettingsContextValue {
@@ -49,8 +49,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     saveSettings(defaults);
   }, []);
 
+  const value = useMemo<SettingsContextValue>(
+    () => ({ settings, setSetting, resetToDefaults }),
+    [settings, setSetting, resetToDefaults]
+  );
+
   return (
-    <SettingsContext.Provider value={{ settings, setSetting, resetToDefaults }}>
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );

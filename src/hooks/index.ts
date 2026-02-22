@@ -8,3 +8,5 @@ export { useSplitter } from './useSplitter';
 export { useScrollSync } from './useScrollSync';
 export { useAutoSave } from './useAutoSave';
 export { useKeyboardShortcuts } from './useKeyboardShortcuts';
+export { useDiffComputation } from './useDiffComputation';
+export { useWelcomeMessage } from './useWelcomeMessage';

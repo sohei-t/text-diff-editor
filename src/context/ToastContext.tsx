@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ToastMessage, ToastType } from '../types';
 
 interface ToastContextValue {
@@ -49,8 +49,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts([]);
   }, []);
 
+  const value = useMemo<ToastContextValue>(
+    () => ({ toasts, showToast, dismissToast, clearAll }),
+    [toasts, showToast, dismissToast, clearAll]
+  );
+
   return (
-    <ToastContext.Provider value={{ toasts, showToast, dismissToast, clearAll }}>
+    <ToastContext.Provider value={value}>
       {children}
     </ToastContext.Provider>
   );

@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -94,20 +95,23 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const value = useMemo<EditorContextValue>(
+    () => ({
+      panels,
+      activePanelId,
+      setActivePanelId,
+      setContent,
+      setModified,
+      setFileName,
+      setFileHandle,
+      setCursorPosition,
+      textareaRefs,
+    }),
+    [panels, activePanelId, setActivePanelId, setContent, setModified, setFileName, setFileHandle, setCursorPosition, textareaRefs]
+  );
+
   return (
-    <EditorContext.Provider
-      value={{
-        panels,
-        activePanelId,
-        setActivePanelId,
-        setContent,
-        setModified,
-        setFileName,
-        setFileHandle,
-        setCursorPosition,
-        textareaRefs,
-      }}
-    >
+    <EditorContext.Provider value={value}>
       {children}
     </EditorContext.Provider>
   );

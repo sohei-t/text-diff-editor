@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { PaneCount } from '../types';
 
 interface SplitContextValue {
@@ -40,22 +40,25 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     setSplitRatioState(Math.min(Math.max(ratio, 0.2), 0.8));
   }, []);
 
+  const value = useMemo<SplitContextValue>(
+    () => ({
+      paneCount,
+      setPaneCount,
+      toggleSplit,
+      splitRatio,
+      setSplitRatio,
+      syncScroll,
+      setSyncScroll,
+      tripleR1,
+      tripleR2,
+      setTripleR1,
+      setTripleR2,
+    }),
+    [paneCount, setPaneCount, toggleSplit, splitRatio, setSplitRatio, syncScroll, setSyncScroll, tripleR1, tripleR2, setTripleR1, setTripleR2]
+  );
+
   return (
-    <SplitContext.Provider
-      value={{
-        paneCount,
-        setPaneCount,
-        toggleSplit,
-        splitRatio,
-        setSplitRatio,
-        syncScroll,
-        setSyncScroll,
-        tripleR1,
-        tripleR2,
-        setTripleR1,
-        setTripleR2,
-      }}
-    >
+    <SplitContext.Provider value={value}>
       {children}
     </SplitContext.Provider>
   );

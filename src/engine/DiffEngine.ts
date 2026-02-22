@@ -1,9 +1,10 @@
 import type { DiffChange, DiffResult, DiffStats, InlineDiff } from '../types';
 
-interface DiffOp {
-  type: 'equal' | 'delete' | 'add';
-  lineA?: number;
-  lineB?: number;
+/** A single diff operation from the Myers algorithm */
+export interface DiffOp {
+  readonly type: 'equal' | 'delete' | 'add';
+  readonly lineA?: number;
+  readonly lineB?: number;
 }
 
 interface CacheEntry {

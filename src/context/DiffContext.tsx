@@ -19,6 +19,7 @@ interface DiffContextValue {
   currentChangeIndex: number;
   navigateDiff: (direction: 'next' | 'prev') => DiffChange | null;
   diffChangesOnly: DiffChange[];
+  isComputing: boolean;
 }
 
 const DiffContext = createContext<DiffContextValue | null>(null);
@@ -27,11 +28,19 @@ export function DiffProvider({ children }: { children: ReactNode }) {
   const engineRef = useRef(new DiffEngine());
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
   const [currentChangeIndex, setCurrentChangeIndex] = useState(-1);
+  const [isComputing, setIsComputing] = useState(false);
 
   const computeDiff = useCallback((textA: string, textB: string) => {
-    const result = engineRef.current.computeLineDiff(textA, textB);
-    setDiffResult(result);
-    setCurrentChangeIndex(-1);
+    setIsComputing(true);
+    try {
+      const result = engineRef.current.computeLineDiff(textA, textB);
+      setDiffResult(result);
+      setCurrentChangeIndex(-1);
+    } catch (err) {
+      console.error('Diff computation failed:', err);
+    } finally {
+      setIsComputing(false);
+    }
   }, []);
 
   const clearDiff = useCallback(() => {
@@ -65,19 +74,23 @@ export function DiffProvider({ children }: { children: ReactNode }) {
     [diffChangesOnly, currentChangeIndex]
   );
 
+  const value = useMemo<DiffContextValue>(
+    () => ({
+      diffResult,
+      computeDiff,
+      clearDiff,
+      changes,
+      stats,
+      currentChangeIndex,
+      navigateDiff,
+      diffChangesOnly,
+      isComputing,
+    }),
+    [diffResult, computeDiff, clearDiff, changes, stats, currentChangeIndex, navigateDiff, diffChangesOnly, isComputing]
+  );
+
   return (
-    <DiffContext.Provider
-      value={{
-        diffResult,
-        computeDiff,
-        clearDiff,
-        changes,
-        stats,
-        currentChangeIndex,
-        navigateDiff,
-        diffChangesOnly,
-      }}
-    >
+    <DiffContext.Provider value={value}>
       {children}
     </DiffContext.Provider>
   );

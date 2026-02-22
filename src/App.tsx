@@ -8,24 +8,27 @@ import {
   FileProvider,
 } from './context';
 import EditorApp from './components/EditorApp';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
 function App() {
   return (
-    <SettingsProvider>
-      <ThemeProvider>
-        <ToastProvider>
-          <FileProvider>
-            <EditorProvider>
-              <SplitProvider>
-                <DiffProvider>
-                  <EditorApp />
-                </DiffProvider>
-              </SplitProvider>
-            </EditorProvider>
-          </FileProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </SettingsProvider>
+    <ErrorBoundary>
+      <SettingsProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <FileProvider>
+              <EditorProvider>
+                <SplitProvider>
+                  <DiffProvider>
+                    <EditorApp />
+                  </DiffProvider>
+                </SplitProvider>
+              </EditorProvider>
+            </FileProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </SettingsProvider>
+    </ErrorBoundary>
   );
 }
 
