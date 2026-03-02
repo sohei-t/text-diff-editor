@@ -1,0 +1,28 @@
+# =============================================================================
+# GitHub Linguist Overrides
+# =============================================================================
+# The app/ and project/public/ directories contain legacy vanilla JavaScript
+# and HTML files from a prior prototype. These are preserved for reference but
+# are not part of the current production codebase, which is 100% TypeScript.
+#
+# Without these overrides, GitHub incorrectly classifies this repository as
+# "HTML" due to the large HTML files in those directories.
+# =============================================================================
+
+# Legacy vanilla JS prototype (app/)
+app/**            linguist-vendored
+app/*.html        linguist-vendored
+app/js/**         linguist-vendored
+
+# Legacy public directory (project/public/)
+project/public/**           linguist-vendored
+project/public/*.html       linguist-vendored
+project/public/js/**        linguist-vendored
+
+# Public directory HTML files
+public/*.html     linguist-vendored
+
+# Generated / non-source files
+*.mp3             linguist-generated
+CLAUDE.md         linguist-vendored
+package-lock.json linguist-generated
