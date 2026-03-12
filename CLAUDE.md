@@ -207,7 +207,7 @@ api_auth_check:
   gcp_settings:
     project_id_env: "GCP_PROJECT_ID"
     credentials_env: "GOOGLE_APPLICATION_CREDENTIALS"
-    default_project: "ai-agent-workflow-2024"
+    default_project: "{GCP_PROJECT_ID}"
     default_credentials: "~/.config/ai-agents/credentials/gcp/default.json"
 
   enabled_apis:
@@ -2160,7 +2160,7 @@ Phase 7 は実行しない ← 重要！
 
 ```bash
 # エージェントが自動実行（ユーザーは修正内容を伝えるだけ）
-cd ~/Desktop/AI-Apps/{app-name}-agent/
+cd ./{app-name}-agent/
 
 # modification_workflow.py が以下を自動実行:
 python3 ./src/modification_workflow.py \
@@ -2496,7 +2496,7 @@ Portfolio用プロジェクトをGitHubに公開し、技術力をアピール�
 3. worktreeがマージ済みか確認
 4. project/public/ フォルダが生成済みか確認
 5. 現在地が専用環境のmainブランチか確認
-   pwd → ~/Desktop/AI-Apps/{app-name}-agent/
+   pwd → ./{app-name}-agent/
 6. project/public/ が固定フォーマットで揃っているか再確認
 =================================
 ```
@@ -2506,7 +2506,7 @@ Portfolio用プロジェクトをGitHubに公開し、技術力をアピール�
 #### 6-0. Worktreeのマージ（削除しない）
 ```bash
 # worktreeの作業を完了してmainにマージ
-cd ~/Desktop/AI-Apps/{app-name}-agent/
+cd ./{app-name}-agent/
 git merge feat/{app-name}
 
 # ⚠️ 重要: Worktreeは削除しない（将来の修正用に維持）
@@ -2528,7 +2528,7 @@ echo "✅ Branch維持: feat/{app-name}"
 **統合ポートフォリオ方式**（推奨）
 ```bash
 # 専用環境のmainブランチで実行
-cd ~/Desktop/AI-Apps/{app-name}-agent/
+cd ./{app-name}-agent/
 
 # simplified_github_publisher.py が以下を自動実行:
 # 1. project/public/ の内容を読み取り
@@ -2653,7 +2653,7 @@ https://{username}.github.io/{repo-name}/{app-name}/
 
 【重要】実行場所の確認
 - worktree作業完了後、mainにマージしてから実行
-- 作業ディレクトリ: ~/Desktop/AI-Apps/{date}-{app-name}-agent/ （mainブランチ）
+- 作業ディレクトリ: ./{app-name}-agent/ （mainブランチ）
 
 【必須確認】
 1. PHASE_6_PUBLISHING_FLOW.md を読む
@@ -2777,7 +2777,7 @@ validate_phase5() {
 
 **このディレクトリは専用のアプリ開発環境です**
 - アプリ名: text-diff-editor
-- 環境パス: /Users/sohei/Desktop/AI-Apps/text-diff-editor-agent
+- 環境パス: .（カレントディレクトリ）
 
 ### 開発完了後の処理
 
