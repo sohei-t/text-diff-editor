@@ -16,7 +16,7 @@ portfolio:
   demo_url: "https://sohei-t.github.io/ai-agent-portfolio/text-diff-editor/"
 
 paths:
-  agent_dir: /Users/sohei/Desktop/AI-Apps/text-diff-editor-agent
+  agent_dir: .  # repository root
   release_dir: ~/Desktop/my-apps/text-diff-editor
   portfolio_dir: ~/Desktop/GitHub/ai-agent-portfolio/text-diff-editor
 

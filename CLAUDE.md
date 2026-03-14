@@ -207,7 +207,7 @@ api_auth_check:
   gcp_settings:
     project_id_env: "GCP_PROJECT_ID"
     credentials_env: "GOOGLE_APPLICATION_CREDENTIALS"
-    default_project: "{GCP_PROJECT_ID}"
+    default_project: "YOUR_GCP_PROJECT_ID"
     default_credentials: "~/.config/ai-agents/credentials/gcp/default.json"
 
   enabled_apis:
@@ -2777,7 +2777,7 @@ validate_phase5() {
 
 **このディレクトリは専用のアプリ開発環境です**
 - アプリ名: text-diff-editor
-- 環境パス: .（カレントディレクトリ）
+- 環境パス: ./ (このリポジトリのルート)
 
 ### 開発完了後の処理
 
